@@ -3,12 +3,18 @@
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
   define('ice-draw',[],function() {
-    var NoRectangle, Path, Point, Rectangle, Size, Text, avgColor, exports, memoizedAvgColor, toHex, toRGB, twoDigitHex, zeroPad, _CTX, _FONT_SIZE, _area, _intersects;
+    var NoRectangle, Path, Point, Rectangle, Size, Text, avgColor, exports, max, memoizedAvgColor, min, toHex, toRGB, twoDigitHex, zeroPad, _CTX, _FONT_SIZE, _area, _intersects;
     _area = function(a, b, c) {
       return (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
     };
     _intersects = function(a, b, c, d) {
       return ((_area(a, b, c) > 0) !== (_area(a, b, d) > 0)) && ((_area(c, d, a) > 0) !== (_area(c, d, b) > 0));
+    };
+    max = function(a, b) {
+      return (a > b ? a : b);
+    };
+    min = function(a, b) {
+      return (b > a ? a : b);
     };
     toRGB = function(hex) {
       var b, c, g, r;
@@ -190,9 +196,11 @@
       Rectangle.prototype.unite = function(rectangle) {
         if (!((this.x != null) && (this.y != null))) {
           return this.copy(rectangle);
+        } else if (!((rectangle.x != null) && (rectangle.y != null))) {
+
         } else {
-          this.width = Math.max(this.right(), rectangle.right()) - (this.x = Math.min(this.x, rectangle.x));
-          return this.height = Math.max(this.bottom(), rectangle.bottom()) - (this.y = Math.min(this.y, rectangle.y));
+          this.width = max(this.right(), rectangle.right()) - (this.x = min(this.x, rectangle.x));
+          return this.height = max(this.bottom(), rectangle.bottom()) - (this.y = min(this.y, rectangle.y));
         }
       };
 
@@ -200,8 +208,8 @@
         if (!((this.x != null) && (this.y != null))) {
           return this.copy(new Rectangle(point.x, point.y, 0, 0));
         } else {
-          this.width = Math.max(this.right(), point.x) - (this.x = Math.min(this.x, point.x));
-          return this.height = Math.max(this.bottom(), point.y) - (this.y = Math.min(this.y, point.y));
+          this.width = max(this.right(), point.x) - (this.x = min(this.x, point.x));
+          return this.height = max(this.bottom(), point.y) - (this.y = min(this.y, point.y));
         }
       };
 
@@ -266,45 +274,43 @@
       }
 
       Path.prototype._clearCache = function() {
-        var point, _i, _len, _ref;
+        var maxX, maxY, minX, minY, point, _i, _len, _ref;
         if (this._cacheFlag) {
+          minX = minY = Infinity;
+          maxX = maxY = 0;
           _ref = this._points;
           for (_i = 0, _len = _ref.length; _i < _len; _i++) {
             point = _ref[_i];
-            point.translate(this._cachedTranslation);
+            minX = min(minX, point.x);
+            maxX = max(maxX, point.x);
+            minY = min(minY, point.y);
+            maxY = max(maxY, point.y);
           }
-          this._bounds.translate(this._cachedTranslation);
-          this._cachedTranslation.clear();
+          this._bounds.x = minX;
+          this._bounds.y = minY;
+          this._bounds.width = maxX - minX;
+          this._bounds.height = maxY - minY;
           return this._cacheFlag = false;
         }
       };
 
-      Path.prototype.recompute = function() {
-        var point, _i, _len, _ref, _results;
-        this._bounds = new NoRectangle();
-        _ref = this._points;
-        _results = [];
-        for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-          point = _ref[_i];
-          _results.push(this._bounds.swallow(point));
-        }
-        return _results;
-      };
-
       Path.prototype.push = function(point) {
         this._points.push(point);
-        return this._bounds.swallow(point);
+        return this._cacheFlag = true;
       };
 
       Path.prototype.unshift = function(point) {
         this._points.unshift(point);
-        return this._bounds.swallow(point);
+        return this._cacheFlag = true;
       };
 
       Path.prototype.contains = function(point) {
         var count, dest, end, last, _i, _len, _ref;
         this._clearCache();
         if (this._points.length === 0) {
+          return false;
+        }
+        if (!this._bounds.contains(point)) {
           return false;
         }
         dest = new Point(this._bounds.x - 10, point.y);
@@ -1645,6 +1651,24 @@
               bottom: 0
             };
           }
+          this.firstMargins = {
+            left: this.margins.firstLeft,
+            right: this.margins.firstRight,
+            top: this.margins.top,
+            bottom: this.lineLength === 1 ? this.margins.bottom : 0
+          };
+          this.midMargins = {
+            left: this.margins.midLeft,
+            right: this.margins.midRight,
+            top: 0,
+            bottom: 0
+          };
+          this.lastMargins = {
+            left: this.margins.lastLeft,
+            right: this.margins.lastRight,
+            top: this.lineLength === 1 ? this.margins.top : 0,
+            bottom: this.margins.bottom
+          };
           _ref1 = this.children;
           for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
             childObj = _ref1[_i];
@@ -1654,24 +1678,13 @@
         };
 
         GenericViewNode.prototype.getMargins = function(line) {
-          var margins;
-          margins = {
-            left: this.margins.midLeft,
-            right: this.margins.midRight,
-            top: 0,
-            bottom: 0
-          };
-          if (line === this.lineLength - 1) {
-            margins.bottom = this.margins.bottom;
-            margins.left = this.margins.lastLeft;
-            margins.right = this.margins.lastRight;
-          }
           if (line === 0) {
-            margins.top = this.margins.top;
-            margins.left = this.margins.firstLeft;
-            margins.right = this.margins.firstRight;
+            return this.firstMargins;
+          } else if (line === this.lineLength - 1) {
+            return this.lastMargins;
+          } else {
+            return this.midMargins;
           }
-          return margins;
         };
 
         GenericViewNode.prototype.computeBevels = function() {
@@ -1684,30 +1697,27 @@
         };
 
         GenericViewNode.prototype.computeMinDimensions = function() {
-          this.minDimensions = (function() {
-            var _i, _ref, _results;
-            _results = [];
-            for (_i = 0, _ref = this.lineLength; 0 <= _ref ? _i < _ref : _i > _ref; 0 <= _ref ? _i++ : _i--) {
-              _results.push(new draw.Size(0, 0));
-            }
-            return _results;
-          }).call(this);
-          this.minDistanceToBase = (function() {
-            var _i, _ref, _results;
-            _results = [];
-            for (_i = 0, _ref = this.lineLength; 0 <= _ref ? _i < _ref : _i > _ref; 0 <= _ref ? _i++ : _i--) {
-              _results.push({
+          var i, _i, _ref;
+          if (this.minDimensions.length > this.lineLength) {
+            this.minDimensions.length = this.minDistanceToBase.length = this.lineLength;
+          } else {
+            while (this.minDimensions.length !== this.lineLength) {
+              this.minDimensions.push(new draw.Size(0, 0));
+              this.minDistanceToBase.push({
                 above: 0,
                 below: 0
               });
             }
-            return _results;
-          }).call(this);
+          }
+          for (i = _i = 0, _ref = this.lineLength; 0 <= _ref ? _i < _ref : _i > _ref; i = 0 <= _ref ? ++_i : --_i) {
+            this.minDimensions[i].width = this.minDimensions[i].height = 0;
+            this.minDistanceToBase[i].above = this.minDistanceToBase[i].below = 0;
+          }
           return null;
         };
 
         GenericViewNode.prototype.computeDimensions = function(startLine, force, root) {
-          var changed, childObj, distance, k, line, lineCount, oldDimensions, oldDistanceToBase, parentNode, _i, _j, _len, _ref, _ref1;
+          var changed, childObj, distance, i, line, lineCount, oldDimensions, oldDistanceToBase, parentNode, size, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2;
           if (root == null) {
             root = false;
           }
@@ -1716,29 +1726,25 @@
           }
           oldDimensions = this.dimensions;
           oldDistanceToBase = this.distanceToBase;
-          this.dimensions = (function() {
-            var _i, _len, _ref, _results;
-            _ref = this.minDimensions;
-            _results = [];
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              k = _ref[_i];
-              _results.push(draw.Size.copy(k));
-            }
-            return _results;
-          }).call(this);
-          this.distanceToBase = (function() {
-            var _i, _len, _ref, _results;
-            _ref = this.minDistanceToBase;
-            _results = [];
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              k = _ref[_i];
-              _results.push({
-                above: k.above,
-                below: k.below
+          if (this.dimensions.length > this.lineLength) {
+            this.dimensions.length = this.distanceToBase.length = this.lineLength;
+          } else {
+            while (this.dimensions.length !== this.lineLength) {
+              this.dimensions.push(new draw.Size(0, 0));
+              this.distanceToBase.push({
+                above: 0,
+                below: 0
               });
             }
-            return _results;
-          }).call(this);
+          }
+          _ref = this.minDimensions;
+          for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+            size = _ref[i];
+            this.dimensions[i].width = size.width;
+            this.dimensions[i].height = size.height;
+            this.distanceToBase[i].above = this.minDistanceToBase[i].above;
+            this.distanceToBase[i].below = this.minDistanceToBase[i].below;
+          }
           if ((this.model.parent != null) && !root && (this.topLineSticksToBottom || this.bottomLineSticksToTop)) {
             parentNode = this.view.getViewNodeFor(this.model.parent);
             if (this.topLineSticksToBottom) {
@@ -1755,7 +1761,7 @@
           }
           changed = oldDimensions.length !== this.lineLength;
           if (!changed) {
-            for (line = _i = 0, _ref = this.lineLength; 0 <= _ref ? _i < _ref : _i > _ref; line = 0 <= _ref ? ++_i : --_i) {
+            for (line = _j = 0, _ref1 = this.lineLength; 0 <= _ref1 ? _j < _ref1 : _j > _ref1; line = 0 <= _ref1 ? ++_j : --_j) {
               if (!oldDimensions[line].equals(this.dimensions[line]) || oldDistanceToBase[line].above !== this.distanceToBase[line].above || oldDistanceToBase[line].below !== this.distanceToBase[line].below) {
                 changed = true;
                 break;
@@ -1763,9 +1769,9 @@
             }
           }
           this.changedBoundingBox || (this.changedBoundingBox = changed);
-          _ref1 = this.children;
-          for (_j = 0, _len = _ref1.length; _j < _len; _j++) {
-            childObj = _ref1[_j];
+          _ref2 = this.children;
+          for (_k = 0, _len1 = _ref2.length; _k < _len1; _k++) {
+            childObj = _ref2[_k];
             this.view.getViewNodeFor(childObj.child).computeDimensions(childObj.startLine, changed);
           }
           return null;
@@ -1840,23 +1846,22 @@
         };
 
         GenericViewNode.prototype.computePath = function() {
-          var bound, childObj, _i, _j, _len, _len1, _ref, _ref1;
+          var childObj, _i, _len, _ref;
           if (this.computedVersion === this.model.version && !this.changedBoundingBox) {
             return null;
           }
           if (this.changedBoundingBox) {
             this.computeOwnPath();
             this.totalBounds = new draw.NoRectangle();
-            _ref = this.bounds;
-            for (_i = 0, _len = _ref.length; _i < _len; _i++) {
-              bound = _ref[_i];
-              this.totalBounds.unite(bound);
+            if (this.bounds.length > 0) {
+              this.totalBounds.unite(this.bounds[0]);
+              this.totalBounds.unite(this.bounds[this.bounds.length - 1]);
             }
             this.totalBounds.unite(this.path.bounds());
           }
-          _ref1 = this.children;
-          for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
-            childObj = _ref1[_j];
+          _ref = this.children;
+          for (_i = 0, _len = _ref.length; _i < _len; _i++) {
+            childObj = _ref[_i];
             this.view.getViewNodeFor(childObj.child).computePath();
           }
           return null;
@@ -3747,10 +3752,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     exports.Editor = Editor = (function() {
-      function Editor(wrapperElement, paletteGroups) {
-        var binding, boundListeners, combo, eventName, fns, _fn, _fn1, _i, _j, _len, _len1, _ref, _ref1, _ref2,
+      function Editor(wrapperElement, paletteElement, paletteGroups) {
+        var binding, boundListeners, combo, elements, eventName, fns, _fn, _fn1, _i, _len, _ref, _ref1, _ref2,
           _this = this;
         this.wrapperElement = wrapperElement;
+        this.paletteElement = paletteElement;
         this.paletteGroups = paletteGroups;
         this.debugging = true;
         this.iceElement = document.createElement('div');
@@ -3767,7 +3773,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.paletteCanvas.className = 'ice-palette-canvas';
         this.paletteCtx = this.paletteCanvas.getContext('2d');
         this.paletteWrapper.appendChild(this.paletteCanvas);
-        this.iceElement.appendChild(this.paletteWrapper);
+        this.paletteElement.appendChild(this.paletteWrapper);
         this.standardViewSettings = {
           padding: 5,
           indentWidth: 15,
@@ -3819,24 +3825,41 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         window.addEventListener('resize', function() {
           return _this.resize();
         });
-        _ref2 = ['mousedown', 'mouseup', 'mousemove'];
-        _fn1 = function(eventName) {
-          return _this.iceElement.addEventListener(eventName, function(event) {
-            var handler, state, trackPoint, _k, _len2, _ref3, _results;
-            trackPoint = _this.getPointRelativeToTracker(event);
-            state = {};
-            _ref3 = editorBindings[eventName];
-            _results = [];
-            for (_k = 0, _len2 = _ref3.length; _k < _len2; _k++) {
-              handler = _ref3[_k];
-              _results.push(handler.call(_this, trackPoint, event, state));
-            }
-            return _results;
-          });
+        _ref2 = {
+          mousedown: [this.iceElement, this.paletteElement],
+          mouseup: [window],
+          mousemove: [window]
         };
-        for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
-          eventName = _ref2[_j];
-          _fn1(eventName);
+        _fn1 = function(eventName, elements) {
+          var element, _j, _len1, _results;
+          _results = [];
+          for (_j = 0, _len1 = elements.length; _j < _len1; _j++) {
+            element = elements[_j];
+            _results.push(element.addEventListener(eventName, function(event) {
+              var handler, state, trackPoint, _k, _len2, _ref3;
+              trackPoint = _this.getPointRelativeToTracker(event);
+              state = {};
+              _ref3 = editorBindings[eventName];
+              for (_k = 0, _len2 = _ref3.length; _k < _len2; _k++) {
+                handler = _ref3[_k];
+                handler.call(_this, trackPoint, event, state);
+              }
+              if (typeof event.stopPropagation === "function") {
+                event.stopPropagation();
+              }
+              if (typeof event.preventDefault === "function") {
+                event.preventDefault();
+              }
+              event.cancelBubble = true;
+              event.returnValue = false;
+              return false;
+            }));
+          }
+          return _results;
+        };
+        for (eventName in _ref2) {
+          elements = _ref2[eventName];
+          _fn1(eventName, elements);
         }
         this.tree = new model.Segment();
         this.resize();
@@ -3869,6 +3892,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
       Editor.prototype.resizePalette = function() {
         var binding, _i, _len, _ref;
+        this.paletteWrapper.style.height = "" + this.paletteElement.offsetHeight + "px";
+        this.paletteWrapper.style.width = "" + this.paletteElement.offsetWidth + "px";
         this.paletteCanvas.style.top = "" + this.paletteHeader.offsetHeight + "px";
         this.paletteCanvas.height = this.paletteWrapper.offsetHeight - this.paletteHeader.offsetHeight;
         this.paletteCanvas.width = this.paletteWrapper.offsetWidth;
@@ -3977,9 +4002,25 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return point;
     };
     Editor.prototype.trackerOffset = function(el) {
-      var x, y;
+      var subtractIceElementOffset, x, y,
+        _this = this;
       x = y = 0;
+      subtractIceElementOffset = function() {
+        var _results;
+        el = _this.iceElement;
+        _results = [];
+        while (el !== null) {
+          x -= el.offsetLeft - el.scrollLeft;
+          y -= el.offsetTop - el.scrollTop;
+          _results.push(el = el.offsetParent);
+        }
+        return _results;
+      };
       while (el !== this.iceElement) {
+        if (el === null) {
+          subtractIceElementOffset();
+          break;
+        }
         x += el.offsetLeft - el.scrollLeft;
         y += el.offsetTop - el.scrollTop;
         el = el.offsetParent;
@@ -4154,7 +4195,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.highlightCanvas = document.createElement('canvas');
       this.highlightCanvas.className = 'ice-highlight-canvas';
       this.highlightCtx = this.highlightCanvas.getContext('2d');
-      this.iceElement.appendChild(this.dragCanvas);
+      document.body.appendChild(this.dragCanvas);
       return this.iceElement.appendChild(this.highlightCanvas);
     });
     Editor.prototype.clearHighlightCanvas = function() {
@@ -4164,8 +4205,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.dragCtx.clearRect(0, 0, this.dragCanvas.width, this.dragCanvas.height);
     };
     hook('resize', 0, function() {
-      this.dragCanvas.width = this.iceElement.offsetWidth * 2;
-      this.dragCanvas.height = this.iceElement.offsetHeight;
+      this.dragCanvas.width = screen.width * 2;
+      this.dragCanvas.height = screen.height * 2;
       this.highlightCanvas.width = this.iceElement.offsetWidth;
       this.highlightCanvas.style.width = "" + this.highlightCanvas.width + "px";
       this.highlightCanvas.height = this.iceElement.offsetHeight;
@@ -4221,7 +4262,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         draggingBlockView.layout(1, 1);
         draggingBlockView.drawShadow(this.dragCtx, 5, 5);
         draggingBlockView.draw(this.dragCtx, new draw.Rectangle(0, 0, this.dragCanvas.width, this.dragCanvas.height));
-        position = new draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
+        position = new draw.Point(point.x + this.draggingOffset.x + getOffsetTop(this.iceElement), point.y + this.draggingOffset.y + getOffsetLeft(this.iceElement));
         this.dragCanvas.style.top = "" + position.y + "px";
         this.dragCanvas.style.left = "" + position.x + "px";
         this.clickedPoint = this.clickedBlock = null;
@@ -4470,6 +4511,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           paletteGroupHeader = document.createElement('div');
           paletteGroupHeader.className = 'ice-palette-group-header';
           paletteGroupHeader.innerText = paletteGroupHeader.textContent = paletteGroup.name;
+          if (paletteGroup.color) {
+            paletteGroupHeader.className += ' ' + paletteGroup.color;
+          }
           paletteHeaderRow.appendChild(paletteGroupHeader);
           if (i % 2 === 1) {
             paletteHeaderRow = document.createElement('div');
@@ -4479,9 +4523,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           clickHandler = function() {
             _this.currentPaletteGroup = paletteGroup.name;
             _this.currentPaletteBlocks = paletteGroup.blocks;
-            _this.currentPaletteGroupHeader.className = 'ice-palette-group-header';
+            _this.currentPaletteGroupHeader.className = _this.currentPaletteGroupHeader.className.replace(/\s[-\w]*-selected\b/, '');
             _this.currentPaletteGroupHeader = paletteGroupHeader;
-            _this.currentPaletteGroupHeader.className = 'ice-palette-group-header ice-palette-group-header-selected';
+            _this.currentPaletteGroupHeader.className += ' ice-palette-group-header-selected';
             return _this.redrawPalette();
           };
           paletteGroupHeader.addEventListener('click', clickHandler);
@@ -4490,7 +4534,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             _this.currentPaletteGroup = paletteGroup.name;
             _this.currentPaletteBlocks = paletteGroup.blocks;
             _this.currentPaletteGroupHeader = paletteGroupHeader;
-            return _this.currentPaletteGroupHeader.className = 'ice-palette-group-header ice-palette-group-header-selected';
+            return _this.currentPaletteGroupHeader.className += ' ice-palette-group-header-selected';
           }
         })(paletteGroup));
       }
@@ -4733,7 +4777,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       row = Math.floor((point.y - textFocusView.bounds[0].y) / (this.fontSize + 2 * this.view.opts.padding));
       row = Math.max(row, 0);
       row = Math.min(row, textFocusView.lineLength - 1);
-      column = Math.round((point.x - textFocusView.bounds[row].x - this.view.opts.padding) / this.mainCtx.measureText(' ').width);
+      column = Math.max(0, Math.round((point.x - textFocusView.bounds[row].x - this.view.opts.padding) / this.mainCtx.measureText(' ').width));
       lines = this.textFocus.stringify().split('\n').slice(0, +row + 1 || 9e9);
       lines[lines.length - 1] = lines[lines.length - 1].slice(0, column);
       return lines.join('\n').length;
@@ -5010,8 +5054,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (attemptReparse) {
         this.reparseHandwrittenBlocks();
       }
-      this.redrawCursor();
-      return this.scrollCursorIntoPosition();
+      return this.redrawCursor();
     };
     Editor.prototype.moveCursorUp = function() {
       var head, _ref, _ref1;
@@ -5073,7 +5116,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.clearLassoSelection();
       this.setTextInputFocus(null);
       this.reparseHandwrittenBlocks();
-      return this.moveCursorTo(this.cursor.next.next);
+      this.moveCursorTo(this.cursor.next.next);
+      return this.scrollCursorIntoPosition();
     });
     hook('key.left', 0, function() {
       var head;
@@ -5730,6 +5774,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (this.fontSize !== fontSize) {
         this.fontSize = fontSize;
         this.paletteHeader.style.fontSize = "" + fontSize + "px";
+        this.view.opts.textHeight = fontSize;
         this.view.clearCache();
         this.redrawMain();
         return this.redrawPalette();
@@ -6080,8 +6125,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.mainScrollerStuffing.appendChild(this.gutter);
     });
     Editor.prototype.addLineNumberForLine = function(line) {
-      var lineDiv, treeView,
-        _this = this;
+      var lineDiv, treeView;
       treeView = this.view.getViewNodeFor(this.tree);
       if (line in this.lineNumberTags) {
         lineDiv = this.lineNumberTags[line];
@@ -6095,12 +6139,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       lineDiv.style.height = treeView.bounds[line].height;
       lineDiv.style.fontSize = this.view.opts.textHeight;
       lineDiv.style.paddingTop = treeView.distanceToBase[line].above - this.view.opts.textHeight;
-      lineDiv.addEventListener('mouseover', function() {
-        return treeView.bounds[line].stroke(_this.lassoSelectCtx, '#000');
-      });
-      lineDiv.addEventListener('mouseout', function() {
-        return _this.clearLassoSelectCanvas();
-      });
       return this.gutter.appendChild(lineDiv);
     };
     Editor.prototype.findLineNumberAtCoordinate = function(coord) {
