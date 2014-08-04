@@ -1,0 +1,17 @@
+{
+  "name": "ice-editor",
+  "version": "0.0.0",
+  "homepage": "https://github.com/PencilCode/ice_editor",
+  "authors": [
+    "dabbler0 <dab1998@gmail.com>"
+  ],
+  "main": "dist/ice-full.min.js",
+  "license": "MIT",
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ]
+}
