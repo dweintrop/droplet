@@ -69,7 +69,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
   # ## The Editor Class
   exports.Editor = class Editor
-    constructor: (@wrapperElement, @paletteGroups) ->
+    constructor: (@wrapperElement, @paletteElement, @paletteGroups) ->
       # ## DOM Population
       # This stage of ICE Editor construction populates the given wrapper
       # element with all the necessary ICE editor components.
@@ -117,7 +117,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       @paletteWrapper.appendChild @paletteCanvas
 
-      @iceElement.appendChild @paletteWrapper
+      @paletteElement.appendChild @paletteWrapper
 
       @standardViewSettings =
         padding: 5
@@ -178,17 +178,32 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       # ## Tracker Events
       # We allow binding to the tracker element.
-      for eventName in ['mousedown', 'mouseup', 'mousemove'] then do (eventName) =>
-        @iceElement.addEventListener eventName, (event) =>
-          trackPoint = @getPointRelativeToTracker event
+      for eventName, elements of {
+          mousedown: [@iceElement, @paletteElement]
+          mouseup: [window]
+          mousemove: [window] } then do (eventName, elements) =>
+        
+        for element in elements
+          element.addEventListener eventName, (event) =>
+            trackPoint = @getPointRelativeToTracker event
 
-          # We keep a state object so that handlers
-          # can know about each other.
-          state = {}
+            # We keep a state object so that handlers
+            # can know about each other.
+            state = {}
 
-          # Call all the handlers.
-          for handler in editorBindings[eventName]
-            handler.call this, trackPoint, event, state
+            # Call all the handlers.
+            for handler in editorBindings[eventName]
+              handler.call this, trackPoint, event, state
+            
+            # Stop event propagation so that
+            # we don't get bad selections
+            event.stopPropagation?()
+            event.preventDefault?()
+
+            event.cancelBubble = true
+            event.returnValue = false
+
+            return false
 
       # ## Document initialization
       # We start of with an empty document
@@ -234,6 +249,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @redrawMain()
 
     resizePalette: ->
+      @paletteWrapper.style.height = "#{@paletteElement.offsetHeight}px"
+      @paletteWrapper.style.width = "#{@paletteElement.offsetWidth}px"
+
       @paletteCanvas.style.top = "#{@paletteHeader.offsetHeight}px"
       @paletteCanvas.height = @paletteWrapper.offsetHeight - @paletteHeader.offsetHeight
       @paletteCanvas.width = @paletteWrapper.offsetWidth
@@ -402,10 +420,20 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   Editor::trackerOffset = (el) ->
     x = y = 0
 
+    subtractIceElementOffset = =>
+      el = @iceElement
+      until el is null
+        x -= el.offsetLeft - el.scrollLeft
+        y -= el.offsetTop - el.scrollTop
+        el = el.offsetParent
+
     until el is @iceElement
+      if el is null
+        # if outside iceElement, then subtract iceElement's offset.
+        do subtractIceElementOffset
+        break
       x += el.offsetLeft - el.scrollLeft
       y += el.offsetTop - el.scrollTop
-
       el = el.offsetParent
 
     return new draw.Point x, y
@@ -633,7 +661,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     # We append it to the tracker element,
     # so that it can appear in front of the scrollers.
-    @iceElement.appendChild @dragCanvas
+    #@iceElement.appendChild @dragCanvas
+    document.body.appendChild @dragCanvas
     @iceElement.appendChild @highlightCanvas
 
   Editor::clearHighlightCanvas = ->
@@ -646,8 +675,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
   # On resize, we will want to size the drag canvas correctly.
   hook 'resize', 0, ->
-    @dragCanvas.width = @iceElement.offsetWidth * 2
-    @dragCanvas.height = @iceElement.offsetHeight
+    @dragCanvas.width = screen.width * 2
+    @dragCanvas.height = screen.height * 2
 
     @highlightCanvas.width = @iceElement.offsetWidth
     @highlightCanvas.style.width = "#{@highlightCanvas.width}px"
@@ -754,8 +783,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       # Translate it immediately into position
       position = new draw.Point(
-        point.x + @draggingOffset.x,
-        point.y + @draggingOffset.y
+        point.x + @draggingOffset.x + getOffsetTop(@iceElement),
+        point.y + @draggingOffset.y + getOffsetLeft(@iceElement)
       )
 
       @dragCanvas.style.top = "#{position.y}px"
@@ -1068,6 +1097,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       paletteGroupHeader = document.createElement 'div'
       paletteGroupHeader.className = 'ice-palette-group-header'
       paletteGroupHeader.innerText = paletteGroupHeader.textContent = paletteGroup.name # innerText and textContent for FF compatability
+      if paletteGroup.color
+        paletteGroupHeader.className += ' ' + paletteGroup.color
 
       paletteHeaderRow.appendChild paletteGroupHeader
 
@@ -1086,13 +1117,16 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         @currentPaletteBlocks = paletteGroup.blocks
 
         # Unapply the "selected" style to the current palette group header
-        @currentPaletteGroupHeader.className = 'ice-palette-group-header'
+        @currentPaletteGroupHeader.className =
+            @currentPaletteGroupHeader.className.replace(
+                /\s[-\w]*-selected\b/, '');
 
         # Now we are the current palette group header
         @currentPaletteGroupHeader = paletteGroupHeader
 
         # Apply the "selected" style to us
-        @currentPaletteGroupHeader.className = 'ice-palette-group-header ice-palette-group-header-selected'
+        @currentPaletteGroupHeader.className +=
+            ' ice-palette-group-header-selected'
 
         # Redraw the palette.
         @redrawPalette()
@@ -1104,11 +1138,11 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       if i is 0
         @currentPaletteGroup = paletteGroup.name
         @currentPaletteBlocks = paletteGroup.blocks
-
         @currentPaletteGroupHeader = paletteGroupHeader
 
         # Apply the "selected" style to us
-        @currentPaletteGroupHeader.className = 'ice-palette-group-header ice-palette-group-header-selected'
+        @currentPaletteGroupHeader.className +=
+            ' ice-palette-group-header-selected'
 
   # The palette hierarchical menu is on top of the track div
   # so that we can click it. However, we do not want this to happen
@@ -1390,7 +1424,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     row = Math.max row, 0
     row = Math.min row, textFocusView.lineLength - 1
 
-    column = Math.round((point.x - textFocusView.bounds[row].x - @view.opts.padding) / @mainCtx.measureText(' ').width)
+    column = Math.max 0, Math.round((point.x - textFocusView.bounds[row].x - @view.opts.padding) / @mainCtx.measureText(' ').width)
 
     lines = @textFocus.stringify().split('\n')[..row]
     lines[lines.length - 1] = lines[lines.length - 1][...column]
@@ -1725,7 +1759,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @reparseHandwrittenBlocks()
 
     @redrawCursor()
-    @scrollCursorIntoPosition()
 
   Editor::moveCursorUp = ->
     # Seek the place we want to move the cursor
@@ -1788,6 +1821,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @setTextInputFocus null
     @reparseHandwrittenBlocks()
     @moveCursorTo @cursor.next.next
+    @scrollCursorIntoPosition()
 
   hook 'key.left', 0, ->
     if @socketFocus?
@@ -2566,6 +2600,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     unless @fontSize is fontSize
       @fontSize = fontSize
       @paletteHeader.style.fontSize = "#{fontSize}px"
+      @view.opts.textHeight = fontSize
       @view.clearCache()
       @redrawMain(); @redrawPalette()
 
@@ -2980,12 +3015,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     lineDiv.style.height =  treeView.bounds[line].height
     lineDiv.style.fontSize = @view.opts.textHeight
     lineDiv.style.paddingTop = treeView.distanceToBase[line].above - @view.opts.textHeight
-
-    lineDiv.addEventListener 'mouseover', =>
-      treeView.bounds[line].stroke @lassoSelectCtx, '#000'
-
-    lineDiv.addEventListener 'mouseout', =>
-      @clearLassoSelectCanvas()
 
     @gutter.appendChild lineDiv
 

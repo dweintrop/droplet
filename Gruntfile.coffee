@@ -152,6 +152,8 @@ module.exports = (grunt) ->
       grunt.task.run 'qunit:all'
       grunt.task.run 'mocha_spawn'
   grunt.registerTask 'testserver', ['watch']
+  grunt.registerTask 'notify-done', ->
+    child_process.spawn 'notify-send', ['Recompiled.', '--urgency=low']
 
   grunt.event.on 'watch', (action, filepath) ->
     if grunt.file.isMatch(grunt.config('watch.sources.files'), filepath)
