@@ -3946,7 +3946,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     Editor.prototype.redrawCursor = function() {
-      this.clearHIghlightCanvas();
+      this.clearHighlightCanvas();
       return this.drawCursor();
     };
     Editor.prototype.drawCursor = function() {
