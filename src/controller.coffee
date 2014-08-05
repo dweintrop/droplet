@@ -262,6 +262,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       for binding in editorBindings.resize_palette
         binding.call this
 
+      @paletteCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
+
       @redrawPalette()
 
 
@@ -332,12 +334,14 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         path.draw @highlightCtx
 
       # Draw the cursor (if exists, and is inserted)
-      @redrawCursor()
+      @drawCursor()
 
       for binding in editorBindings.redraw_main
         binding.call this, layoutResult
 
-  Editor::redrawCursor = -> @strokeCursor @determineCursorPosition()
+  Editor::redrawCursor = -> @clearHIghlightCanvas(); @drawCursor()
+
+  Editor::drawCursor = -> @strokeCursor @determineCursorPosition()
 
   Editor::clearPalette = ->
       @paletteCtx.clearRect @scrollOffsets.palette.x, @scrollOffsets.palette.y,
@@ -496,6 +500,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     # Nope, it's not. Answer is null.
     else return null
+  
+  hook 'mousedown', 10, ->
+    @iceElement.focus()
 
   # UNDO STACK SUPPORT
   # ================================
@@ -2963,8 +2970,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # ================================
   Editor::strokeCursor = (point) ->
     return unless point?
-
-    @clearHighlightCanvas()
 
     @highlightCtx.beginPath()
 
