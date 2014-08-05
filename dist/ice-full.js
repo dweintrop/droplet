@@ -5432,7 +5432,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.aceEditor.getSession().setMode('ace/mode/coffee');
       this.aceEditor.getSession().setTabSize(2);
       this.aceEditor.on('change', function() {
-        return _this.setFontSize_raw(_this.aceEditor.getFontSize());
+        _this.setFontSize_raw(_this.aceEditor.getFontSize());
+        _this.gutter.style.width = _this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
+        return _this.resize();
       });
       this.currentlyUsingBlocks = true;
       this.currentlyAnimating = false;
@@ -5560,7 +5562,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           });
         }
         top = Math.max(this.aceEditor.getFirstVisibleRow(), 0);
-        bottom = Math.min(this.aceEditor.getLastVisibleRow(), this.view.getViewFor(this.tree).lineLength - 1);
+        bottom = Math.min(this.aceEditor.getLastVisibleRow(), this.view.getViewNodeFor(this.tree).lineLength - 1);
         aceScrollTop = this.aceEditor.session.getScrollTop();
         treeView = this.view.getViewNodeFor(this.tree);
         lineHeight = this.aceEditor.renderer.layerConfig.lineHeight;
@@ -5678,7 +5680,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             });
           }
           top = Math.max(_this.aceEditor.getFirstVisibleRow(), 0);
-          bottom = Math.min(_this.aceEditor.getLastVisibleRow(), _this.view.getViewFor(_this.tree).lineLength - 1);
+          bottom = Math.min(_this.aceEditor.getLastVisibleRow(), _this.view.getViewNodeFor(_this.tree).lineLength - 1);
           treeView = _this.view.getViewNodeFor(_this.tree);
           lineHeight = _this.aceEditor.renderer.layerConfig.lineHeight;
           aceScrollTop = _this.aceEditor.session.getScrollTop();
@@ -5828,7 +5830,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.setFontSize = function(fontSize) {
       this.aceEditor.setFontSize(fontSize);
-      return this.setFontSize_raw(fontSize);
+      this.aceEditor.resize();
+      this.setFontSize_raw(fontSize);
+      this.gutter.style.width = this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
+      return this.resize();
     };
     MutationButtonOperation = (function(_super) {
       __extends(MutationButtonOperation, _super);
