@@ -5646,7 +5646,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         if (!setValueResult.success) {
           return setValueResult;
         }
-        this.mainScroller.scrollTop = this.view.getViewNodeFor(this.tree).bounds[this.aceEditor.getFirstVisibleRow()].y;
+        if (this.aceEditor.getFirstVisibleRow() === 0) {
+          this.mainScroller.scrollTop = 0;
+        } else {
+          this.mainScroller.scrollTop = this.view.getViewNodeFor(this.tree).bounds[this.aceEditor.getFirstVisibleRow()].y;
+        }
         setTimeout((function() {
           var aceScrollTop, bottom, div, i, line, lineHeight, textElement, textElements, tick, top, translatingElements, translationVectors, treeView, _i, _j, _len, _ref, _ref1, _ref2;
           _this.setFontSize(_this.aceEditor.getFontSize());
@@ -5706,7 +5710,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               div: div,
               position: {
                 x: 0,
-                y: lineHeight * line
+                y: lineHeight * line - aceScrollTop + _this.scrollOffsets.main.y
               },
               vector: new draw.Point(0, lineHeight * line - (treeView.bounds[line].y + treeView.distanceToBase[line].above - _this.fontSize) - aceScrollTop + _this.scrollOffsets.main.y)
             });
