@@ -5942,13 +5942,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('populate', 0, function() {
       return this.markedLines = {};
     });
-    Editor.prototype.markLine = function(line) {
+    Editor.prototype.markLine = function(line, style) {
       var block, path;
       block = this.tree.getBlockOnLine(line);
       if (block != null) {
         path = this.markedLines[line] = this.view.getViewNodeFor(block).path.clone();
         path.style.fillColor = null;
-        path.style.strokeColor = '#FFF';
+        path.style.strokeColor = style.color;
         path.style.lineWidth = 2;
         path.noclip = true;
         path.bevel = false;
