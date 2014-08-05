@@ -456,7 +456,6 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
           ctx.lineWidth = 2;
           ctx.strokeStyle = avgColor(this.style.fillColor, 0.7, '#000');
           ctx.stroke();
-          ctx.strokeStyle = 'white';
           ctx.beginPath();
           ctx.moveTo(this._points[0].x, this._points[0].y);
           _ref2 = this._points.slice(1);
@@ -2282,7 +2281,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
         };
 
         ContainerViewNode.prototype.computeOwnPath = function() {
-          var bounds, el, glueTop, innerLeft, innerRight, left, leftmost, line, multilineBounds, multilineChild, multilineNode, multilineView, path, right, rightmost, _i, _j, _len, _len1, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6;
+          var bounds, el, glueTop, innerLeft, innerRight, left, leftmost, line, multilineBounds, multilineChild, multilineNode, multilineView, path, right, rightmost, _i, _j, _len, _len1, _ref, _ref1, _ref2, _ref3, _ref4, _ref5;
           left = [];
           right = [];
           if (this.shouldAddTab()) {
@@ -2333,7 +2332,6 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
               multilineChild = this.lineChildren[line][this.lineChildren[line].length - 1];
               multilineView = this.view.getViewNodeFor(multilineChild.child);
               multilineBounds = multilineView.bounds[line - multilineChild.startLine];
-              right.push(new draw.Point(bounds.right(), bounds.y));
               if (multilineBounds.width === 0) {
                 if (this.bevels.topRight) {
                   right.push(new draw.Point(bounds.right() - this.view.opts.bevelClip, bounds.y));
@@ -2341,13 +2339,8 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
                 } else {
                   right.push(new draw.Point(bounds.right(), bounds.y));
                 }
-                if (this.bevels.bottomRight && !((_ref1 = this.glue[line]) != null ? _ref1.draw : void 0)) {
-                  right.push(new draw.Point(bounds.right(), bounds.bottom() - this.view.opts.bevelClip));
-                  right.push(new draw.Point(bounds.right() - this.view.opts.bevelClip, bounds.bottom()));
-                } else {
-                  right.push(new draw.Point(bounds.right(), bounds.bottom()));
-                }
               } else {
+                right.push(new draw.Point(bounds.right(), bounds.y));
                 right.push(new draw.Point(bounds.right(), multilineBounds.y));
                 right.push(new draw.Point(multilineBounds.x + this.view.opts.bevelClip, multilineBounds.y));
                 right.push(new draw.Point(multilineBounds.x, multilineBounds.y + this.view.opts.bevelClip));
@@ -2362,7 +2355,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
               right.push(new draw.Point(multilineBounds.x, bounds.y));
               right.push(new draw.Point(multilineBounds.x, bounds.bottom()));
             }
-            if ((_ref2 = this.multilineChildrenData[line]) === MULTILINE_END || _ref2 === MULTILINE_END_START) {
+            if ((_ref1 = this.multilineChildrenData[line]) === MULTILINE_END || _ref1 === MULTILINE_END_START) {
               left.push(new draw.Point(bounds.x, bounds.y));
               left.push(new draw.Point(bounds.x, bounds.bottom()));
               multilineChild = this.lineChildren[line][0];
@@ -2390,7 +2383,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
                     } else {
                       right.push(new draw.Point(bounds.right(), bounds.y));
                     }
-                    if (this.bevels.bottomRight && !((_ref3 = this.glue[line]) != null ? _ref3.draw : void 0)) {
+                    if (this.bevels.bottomRight && !((_ref2 = this.glue[line]) != null ? _ref2.draw : void 0)) {
                       right.push(new draw.Point(bounds.right(), bounds.bottom() - this.view.opts.bevelClip));
                       right.push(new draw.Point(bounds.right() - this.view.opts.bevelClip, bounds.bottom()));
                     } else {
@@ -2430,21 +2423,26 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
               innerRight = Math.min(this.bounds[line + 1].right(), this.bounds[line].right());
               left.push(new draw.Point(innerLeft, this.bounds[line].bottom()));
               left.push(new draw.Point(innerLeft, this.bounds[line + 1].y));
-              if ((_ref4 = this.multilineChildrenData[line]) !== MULTILINE_START && _ref4 !== MULTILINE_END_START) {
+              if ((_ref3 = this.multilineChildrenData[line]) !== MULTILINE_START && _ref3 !== MULTILINE_END_START) {
                 right.push(new draw.Point(innerRight, this.bounds[line].bottom()));
                 right.push(new draw.Point(innerRight, this.bounds[line + 1].y));
               }
             }
-            if ((_ref5 = this.multilineChildrenData[line]) === MULTILINE_START || _ref5 === MULTILINE_END_START) {
+            if ((_ref4 = this.multilineChildrenData[line]) === MULTILINE_START || _ref4 === MULTILINE_END_START) {
               multilineChild = this.lineChildren[line][this.lineChildren[line].length - 1];
               multilineNode = this.view.getViewNodeFor(multilineChild.child);
               multilineBounds = multilineNode.bounds[line - multilineChild.startLine];
-              if ((_ref6 = this.glue[line]) != null ? _ref6.draw : void 0) {
+              if ((_ref5 = this.glue[line]) != null ? _ref5.draw : void 0) {
                 glueTop = this.bounds[line + 1].y - this.glue[line].height + this.view.opts.padding;
               } else {
                 glueTop = this.bounds[line].bottom();
               }
-              right.push(new draw.Point(multilineBounds.x, glueTop));
+              if (multilineChild.child.type === 'indent') {
+                right.push(new draw.Point(this.bounds[line].right(), glueTop - this.view.opts.bevelClip));
+                right.push(new draw.Point(this.bounds[line].right() - this.view.opts.bevelClip, glueTop));
+              } else {
+                right.push(new draw.Point(multilineBounds.x, glueTop));
+              }
               if (multilineChild.child.type === 'indent') {
                 this.addTab(right, new draw.Point(this.bounds[line + 1].x + this.view.opts.indentWidth + this.padding + this.view.opts.tabOffset, this.bounds[line + 1].y), true);
               }
@@ -4308,7 +4306,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     });
     hook('mousemove', 0, function(point, event, state) {
-      var head, highlight, mainPoint, position,
+      var head, highlight, mainPoint, palettePoint, position, _ref, _ref1, _ref2, _ref3,
         _this = this;
       if (this.draggingBlock != null) {
         position = new draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
@@ -4341,7 +4339,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           if (highlight != null) {
             this.view.getViewNodeFor(highlight).highlightArea.draw(this.highlightCtx);
           }
-          return this.lastHighlight = highlight;
+          this.lastHighlight = highlight;
+        }
+        palettePoint = this.trackerPointToPalette(position);
+        if ((0 < (_ref = palettePoint.x - this.scrollOffsets.palette.x) && _ref < this.paletteCanvas.width) && (0 < (_ref1 = palettePoint.y - this.scrollOffsets.palette.y) && _ref1 < this.paletteCanvas.height) || !((0 < (_ref2 = mainPoint.x - this.scrollOffsets.main.x) && _ref2 < this.mainCanvas.width) && (0 < (_ref3 = mainPoint.y - this.scrollOffsets.main.y) && _ref3 < this.mainCanvas.height))) {
+          return this.dragCanvas.style.opacity = 0.7;
+        } else {
+          return this.dragCanvas.style.opacity = 1;
         }
       }
     });
@@ -4850,6 +4854,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('mousemove', 0, function(point, event, state) {
       var mainPoint;
       if (this.textInputSelecting) {
+        if (this.textFocus == null) {
+          this.textInputSelecting = false;
+          return;
+        }
         mainPoint = this.trackerPointToMain(point);
         this.setTextInputHead(mainPoint);
         return this.redrawTextInput();
@@ -5682,7 +5690,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div.style.boxSizing = 'border-box';
             div.style.position = 'absolute';
             div.style.zIndex = 300;
-            div.style.width = "" + editor.aceEditor.renderer.$gutter.offsetWidth + "px";
+            div.style.width = "" + _this.aceEditor.renderer.$gutter.offsetWidth + "px";
             div.style.textAlign = 'right';
             div.style.paddingRight = '10px';
             div.style.left = 0;
