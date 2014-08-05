@@ -5983,7 +5983,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.setValue(this.aceEditor.getValue());
         this.iceElement.style.top = this.iceElement.style.left = '0px';
         this.aceElement.style.top = this.aceElement.style.left = '-9999px';
-        this.gutter.style.display = 'block';
+        this.gutter.style.left = this.gutter.style.top = '0px';
         this.currentlyUsingBlocks = true;
         this.resize();
         return this.redrawMain();
@@ -5991,7 +5991,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.aceEditor.setValue(this.getValue(), -1);
         this.iceElement.style.top = this.iceElement.style.left = '-9999px';
         this.aceElement.style.top = this.aceElement.style.left = '0px';
-        this.gutter.style.display = 'none';
+        this.gutter.style.left = this.gutter.style.top = '-9999px';
         this.currentlyUsingBlocks = false;
         return this.resize();
       }
