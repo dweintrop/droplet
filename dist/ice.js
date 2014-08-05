@@ -4265,9 +4265,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         draggingBlockView.layout(1, 1);
         draggingBlockView.drawShadow(this.dragCtx, 5, 5);
         draggingBlockView.draw(this.dragCtx, new draw.Rectangle(0, 0, this.dragCanvas.width, this.dragCanvas.height));
-        position = new draw.Point(point.x + this.draggingOffset.x + getOffsetTop(this.iceElement), point.y + this.draggingOffset.y + getOffsetLeft(this.iceElement));
-        this.dragCanvas.style.top = "" + position.y + "px";
-        this.dragCanvas.style.left = "" + position.x + "px";
+        position = new draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
+        this.dragCanvas.style.top = "" + (position.y + getOffsetTop(this.iceElement)) + "px";
+        this.dragCanvas.style.left = "" + (position.x + getOffsetLeft(this.iceElement)) + "px";
         this.clickedPoint = this.clickedBlock = null;
         return this.redrawMain();
       }
@@ -4277,8 +4277,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         _this = this;
       if (this.draggingBlock != null) {
         position = new draw.Point(point.x + this.draggingOffset.x + getOffsetLeft(this.iceElement), point.y + this.draggingOffset.y + getOffsetTop(this.iceElement));
-        this.dragCanvas.style.top = "" + position.y + "px";
-        this.dragCanvas.style.left = "" + position.x + "px";
+        this.dragCanvas.style.top = "" + (position.y + getOffsetTop(this.iceElement)) + "px";
+        this.dragCanvas.style.left = "" + (position.x + getOffsetLeft(this.iceElement)) + "px";
         mainPoint = this.trackerPointToMain(position);
         if (mainPoint.y > this.view.getViewNodeFor(this.tree).getBounds().bottom() && mainPoint.x > 0) {
           head = this.tree.end;
