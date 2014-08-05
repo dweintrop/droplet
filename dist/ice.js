@@ -397,7 +397,9 @@
           ctx.fill();
         }
         ctx.save();
-        ctx.clip();
+        if (!this.noclip) {
+          ctx.clip();
+        }
         if (this.bevel) {
           ctx.beginPath();
           ctx.moveTo(this._points[0].x, this._points[0].y);
@@ -1588,7 +1590,7 @@
 
         GenericViewNode.prototype.computeMargins = function() {
           var childObj, left, padding, parenttype, right, _i, _len, _ref, _ref1;
-          if (this.computedVersion === this.model.version) {
+          if (this.computedVersion === this.model.version && ((this.model.parent == null) || this.model.parent.version === this.view.getViewNodeFor(this.model.parent).computedVersion)) {
             return this.margins;
           }
           parenttype = (_ref = this.model.parent) != null ? _ref.type : void 0;
@@ -2601,6 +2603,7 @@
           } else {
             this.dropArea = this.path;
             this.highlightArea = this.path.clone();
+            this.highlightArea.noclip = true;
             this.highlightArea.style.strokeColor = '#FFF';
             return this.highlightArea.style.lineWidth = this.view.opts.padding;
           }
