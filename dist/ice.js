@@ -5524,8 +5524,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             vector: translationVectors[i]
           });
         }
-        top = this.aceEditor.getFirstVisibleRow();
-        bottom = this.aceEditor.getLastVisibleRow();
+        top = Math.max(this.aceEditor.getFirstVisibleRow(), 0);
+        bottom = Math.min(this.aceEditor.getLastVisibleRow(), this.view.getViewFor(this.tree).lineLength - 1);
         aceScrollTop = this.aceEditor.session.getScrollTop();
         treeView = this.view.getViewNodeFor(this.tree);
         lineHeight = this.aceEditor.renderer.layerConfig.lineHeight;
@@ -5642,8 +5642,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               vector: translationVectors[i]
             });
           }
-          top = _this.aceEditor.getFirstVisibleRow();
-          bottom = _this.aceEditor.getLastVisibleRow();
+          top = Math.max(_this.aceEditor.getFirstVisibleRow(), 0);
+          bottom = Math.min(_this.aceEditor.getLastVisibleRow(), _this.view.getViewFor(_this.tree).lineLength - 1);
           treeView = _this.view.getViewNodeFor(_this.tree);
           lineHeight = _this.aceEditor.renderer.layerConfig.lineHeight;
           aceScrollTop = _this.aceEditor.session.getScrollTop();
