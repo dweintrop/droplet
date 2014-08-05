@@ -6181,10 +6181,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         lineDiv.innerText = line + 1;
         this.lineNumberTags[line] = lineDiv;
       }
-      lineDiv.style.top = "" + treeView.bounds[line].y + "px";
-      lineDiv.style.height = treeView.bounds[line].height;
-      lineDiv.style.fontSize = this.view.opts.textHeight;
-      lineDiv.style.paddingTop = treeView.distanceToBase[line].above - this.view.opts.textHeight;
+      lineDiv.style.top = treeView.bounds[line].y + 'px';
+      lineDiv.style.height = treeView.bounds[line].height + 'px';
+      lineDiv.style.fontSize = this.view.opts.textHeight + 'px';
+      lineDiv.style.paddingTop = treeView.distanceToBase[line].above - this.view.opts.textHeight + 'px';
       return this.gutter.appendChild(lineDiv);
     };
     Editor.prototype.findLineNumberAtCoordinate = function(coord) {
