@@ -2405,11 +2405,9 @@
               if (multilineChild.child.type === 'indent') {
                 right.push(new draw.Point(this.bounds[line].right(), glueTop - this.view.opts.bevelClip));
                 right.push(new draw.Point(this.bounds[line].right() - this.view.opts.bevelClip, glueTop));
+                this.addTab(right, new draw.Point(this.bounds[line + 1].x + this.view.opts.indentWidth + this.padding + this.view.opts.tabOffset, this.bounds[line + 1].y), true);
               } else {
                 right.push(new draw.Point(multilineBounds.x, glueTop));
-              }
-              if (multilineChild.child.type === 'indent') {
-                this.addTab(right, new draw.Point(this.bounds[line + 1].x + this.view.opts.indentWidth + this.padding + this.view.opts.tabOffset, this.bounds[line + 1].y), true);
               }
               right.push(new draw.Point(multilineNode.bounds[line - multilineChild.startLine + 1].x, glueTop));
               right.push(new draw.Point(multilineNode.bounds[line - multilineChild.startLine + 1].x, this.bounds[line + 1].y));
@@ -3994,8 +3992,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.absoluteOffset = function(el) {
       var point;
-      point = new draw.Point(0, 0);
-      while (el !== document.body) {
+      point = new draw.Point(el.offsetLeft, el.offsetTop);
+      el = el.offsetParent;
+      while (!(el === document.body || (el == null))) {
         point.x += el.offsetLeft - el.scrollLeft;
         point.y += el.offsetTop - el.scrollTop;
         el = el.offsetParent;
@@ -4005,12 +4004,16 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.trackerOffset = function(el) {
       var subtractIceElementOffset, x, y,
         _this = this;
-      x = y = 0;
+      x = el.offsetLeft;
+      y = el.offsetTop;
+      el = el.offsetParent;
       subtractIceElementOffset = function() {
         var _results;
-        el = _this.iceElement;
+        el = _this.iceElement.offsetParent;
+        x -= _this.iceElement.offsetLeft;
+        y -= _this.iceElement.offsetTop;
         _results = [];
-        while (el !== null) {
+        while (el != null) {
           x -= el.offsetLeft - el.scrollLeft;
           y -= el.offsetTop - el.scrollTop;
           _results.push(el = el.offsetParent);
@@ -4018,7 +4021,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return _results;
       };
       while (el !== this.iceElement) {
-        if (el === null) {
+        if (el == null) {
           subtractIceElementOffset();
           break;
         }
