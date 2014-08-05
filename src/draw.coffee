@@ -300,10 +300,6 @@ define ->
       unless @noclip
         ctx.clip()
       if @bevel
-        #ctx.shadowBlur = 5
-        #ctx.shadowColor = 'black'
-        #ctx.shadowOffsetX = ctx.shadowOffsetY = 0
-
         ctx.beginPath()
         ctx.moveTo @_points[0].x, @_points[0].y
         for point, i in @_points[1..]
@@ -324,11 +320,6 @@ define ->
         ctx.lineWidth = 2
         ctx.strokeStyle = avgColor @style.fillColor, 0.7, '#000'
         ctx.stroke()
-
-        ctx.strokeStyle = 'white'
-        #ctx.shadowBlur = 5
-        #ctx.shadowColor = 'white'
-        #ctx.shadowOffsetX = ctx.shadowOffsetY = 0
 
         ctx.beginPath()
         ctx.moveTo @_points[0].x, @_points[0].y

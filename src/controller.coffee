@@ -855,6 +855,18 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
         @lastHighlight = highlight
 
+      # Make the canvas transparent if
+      # we would delete the block
+      palettePoint = @trackerPointToPalette position
+
+      if 0 < palettePoint.x - @scrollOffsets.palette.x < @paletteCanvas.width and
+         0 < palettePoint.y - @scrollOffsets.palette.y < @paletteCanvas.height or not
+         (0 < mainPoint.x - @scrollOffsets.main.x < @mainCanvas.width and
+         0 < mainPoint.y - @scrollOffsets.main.y< @mainCanvas.height)
+        @dragCanvas.style.opacity = 0.7
+      else
+        @dragCanvas.style.opacity = 1
+
   hook 'mouseup', 0, (point, event, state) ->
     # We will consume this event iff we dropped it successfully
     # in the root tree.
@@ -1471,6 +1483,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # to match the mouse.
   hook 'mousemove', 0, (point, event, state) ->
     if @textInputSelecting
+      unless @textFocus?
+        @textInputSelecting = false; return
+
       mainPoint = @trackerPointToMain point
 
       @setTextInputHead mainPoint
@@ -2451,7 +2466,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
           div.style.boxSizing = 'border-box'
           div.style.position = 'absolute'
           div.style.zIndex = 300
-          div.style.width = "#{editor.aceEditor.renderer.$gutter.offsetWidth}px"
+          div.style.width = "#{@aceEditor.renderer.$gutter.offsetWidth}px"
           div.style.textAlign = 'right'
           div.style.paddingRight = '10px'
 
