@@ -5581,7 +5581,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })();
     Editor.prototype.performMeltAnimation = function() {
-      var aceScrollTop, animatedColor, bottom, div, i, line, lineHeight, originalOffset, textElement, textElements, tick, top, translatingElements, translationVectors, treeView, _i, _j, _len, _ref,
+      var aceScrollTop, bottom, div, i, line, lineHeight, textElement, textElements, top, translatingElements, translationVectors, treeView, _fn, _fn1, _i, _j, _len, _ref,
         _this = this;
       if (this.currentlyUsingBlocks && !this.currentlyAnimating) {
         this.aceEditor.setValue(this.getValue(), -1);
@@ -5596,95 +5596,71 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.paletteHeader.style.zIndex = 0;
         _ref = this.computePlaintextTranslationVectors(), textElements = _ref.textElements, translationVectors = _ref.translationVectors;
         translatingElements = [];
+        _fn = function(div, textElement, translationVectors, i) {
+          return setTimeout((function() {
+            div.style.left = (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + 'px';
+            return div.style.top = (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + 'px';
+          }), 500);
+        };
         for (i = _i = 0, _len = textElements.length; _i < _len; i = ++_i) {
           textElement = textElements[i];
-          if (!(0 < textElement.bounds[0].bottom() - this.scrollOffsets.main.y && textElement.bounds[0].y - this.scrollOffsets.main.y < this.mainCanvas.height || 0 < textElement.bounds[0].bottom() - this.scrollOffsets.main.y + translationVectors[i].y && textElement.bounds[0].y - this.scrollOffsets.main.y + translationVectors[i].y < this.mainCanvas.height)) {
+          if (!(0 < textElement.bounds[0].bottom() - this.scrollOffsets.main.y + translationVectors[i].y && textElement.bounds[0].y - this.scrollOffsets.main.y + translationVectors[i].y < this.mainCanvas.height)) {
             continue;
           }
           div = document.createElement('div');
           div.style.whiteSpace = 'pre';
           div.innerText = textElement.model.value;
           div.style.font = this.fontSize + 'px Courier New';
-          div.style.position = 'absolute';
           div.style.left = "" + (textElement.bounds[0].x - this.scrollOffsets.main.x) + "px";
           div.style.top = "" + (textElement.bounds[0].y - this.scrollOffsets.main.y) + "px";
+          div.className = 'ice-transitioning-element';
+          translatingElements.push(div);
           this.transitionContainer.appendChild(div);
-          translatingElements.push({
-            div: div,
-            position: {
-              x: textElement.bounds[0].x - this.scrollOffsets.main.x,
-              y: textElement.bounds[0].y - this.scrollOffsets.main.y
-            },
-            vector: translationVectors[i]
-          });
+          _fn(div, textElement, translationVectors, i);
         }
         top = Math.max(this.aceEditor.getFirstVisibleRow(), 0);
         bottom = Math.min(this.aceEditor.getLastVisibleRow(), this.view.getViewNodeFor(this.tree).lineLength - 1);
         aceScrollTop = this.aceEditor.session.getScrollTop();
         treeView = this.view.getViewNodeFor(this.tree);
         lineHeight = this.aceEditor.renderer.layerConfig.lineHeight;
+        _fn1 = function(div, line) {
+          return setTimeout((function() {
+            div.style.left = '0px';
+            return div.style.top = (line * lineHeight - aceScrollTop + _this.scrollOffsets.main.y) + 'px';
+          }), 500);
+        };
         for (line = _j = top; top <= bottom ? _j <= bottom : _j >= bottom; line = top <= bottom ? ++_j : --_j) {
           div = document.createElement('div');
           div.style.whiteSpace = 'pre';
           div.innerText = line + 1;
-          div.style.font = this.fontSize + 'px Courier New';
-          div.style.boxSizing = 'border-box';
-          div.style.position = 'absolute';
-          div.style.zIndex = 300;
-          div.style.width = "" + this.gutter.offsetWidth + "px";
-          div.style.textAlign = 'right';
-          div.style.paddingRight = '10px';
           div.style.left = 0;
           div.style.top = "" + (treeView.bounds[line].y + treeView.distanceToBase[line].above - this.fontSize) + "px";
-          translatingElements.push({
-            div: div,
-            position: {
-              x: 0,
-              y: treeView.bounds[line].y + treeView.distanceToBase[line].above - this.fontSize
-            },
-            vector: new draw.Point(0, lineHeight * line - (treeView.bounds[line].y + treeView.distanceToBase[line].above - this.fontSize) - aceScrollTop + this.scrollOffsets.main.y)
-          });
+          div.style.font = this.fontSize + 'px Courier New';
+          div.style.width = "" + this.gutter.offsetWidth + "px";
+          translatingElements.push(div);
+          div.className = 'ice-transitioning-element ice-transitioning-gutter';
           this.mainScrollerStuffing.appendChild(div);
+          _fn1(div, line);
         }
         this.gutter.style.left = '-9999px';
         this.gutter.style.top = '-9999px';
-        animatedColor = new AnimatedColor('#CCCCCC', '#FFFFFF', ANIMATION_FRAME_RATE);
-        originalOffset = this.scrollOffsets.main.y;
-        tick = function(count) {
-          var element, _k, _l, _len1, _len2, _results;
-          if (count < ANIMATION_FRAME_RATE * 2) {
-            setTimeout((function() {
-              return tick(count + 1);
-            }), 1000 / ANIMATION_FRAME_RATE);
+        this.paletteWrapper.style.opacity = this.mainCanvas.style.opacity = this.highlightCanvas.style.opacity = 0;
+        setTimeout((function() {
+          var _k, _len1, _results;
+          _this.iceElement.style.top = "-9999px";
+          _this.iceElement.style.left = "-9999px";
+          _this.aceElement.style.top = "0px";
+          _this.aceElement.style.left = "0px";
+          _this.currentlyAnimating = false;
+          _this.scrollOffsets.main.y = 0;
+          _this.mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+          _results = [];
+          for (_k = 0, _len1 = translatingElements.length; _k < _len1; _k++) {
+            div = translatingElements[_k];
+            _results.push(div.parentNode.removeChild(div));
           }
-          if (count < ANIMATION_FRAME_RATE) {
-            _this.paletteWrapper.style.opacity = _this.mainCanvas.style.opacity = _this.highlightCanvas.style.opacity = Math.max(0, 1 - 2 * (count / ANIMATION_FRAME_RATE));
-          } else {
-            for (_k = 0, _len1 = translatingElements.length; _k < _len1; _k++) {
-              element = translatingElements[_k];
-              element.position.x += element.vector.x / ANIMATION_FRAME_RATE;
-              element.position.y += element.vector.y / ANIMATION_FRAME_RATE;
-              element.div.style.left = "" + element.position.x + "px";
-              element.div.style.top = "" + element.position.y + "px";
-            }
-          }
-          if (count === ANIMATION_FRAME_RATE * 2) {
-            _this.iceElement.style.top = "-9999px";
-            _this.iceElement.style.left = "-9999px";
-            _this.aceElement.style.top = "0px";
-            _this.aceElement.style.left = "0px";
-            _this.currentlyAnimating = false;
-            _this.scrollOffsets.main.y = 0;
-            _this.mainCtx.setTransform(1, 0, 0, 1, 0, 0);
-            _results = [];
-            for (_l = 0, _len2 = translatingElements.length; _l < _len2; _l++) {
-              element = translatingElements[_l];
-              _results.push(element.div.parentNode.removeChild(element.div));
-            }
-            return _results;
-          }
-        };
-        tick(0);
+          return _results;
+        }), 1500);
         return {
           success: true
         };
@@ -5704,7 +5680,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.mainScroller.scrollTop = this.view.getViewNodeFor(this.tree).bounds[this.aceEditor.getFirstVisibleRow()].y;
         }
         setTimeout((function() {
-          var aceScrollTop, bottom, div, i, line, lineHeight, textElement, textElements, tick, top, translatingElements, translationVectors, treeView, _i, _j, _len, _ref, _ref1, _ref2;
+          var aceScrollTop, bottom, div, i, line, lineHeight, textElement, textElements, top, translatingElements, translationVectors, treeView, _fn, _fn1, _i, _j, _len, _ref;
           _this.setFontSize(_this.aceEditor.getFontSize());
           _this.redrawMain({
             noText: true
@@ -5718,9 +5694,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _this.paletteHeader.style.zIndex = 0;
           _ref = _this.computePlaintextTranslationVectors(), textElements = _ref.textElements, translationVectors = _ref.translationVectors;
           translatingElements = [];
+          _fn = function(div, textElement) {
+            return setTimeout((function() {
+              div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x) + "px";
+              return div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y) + "px";
+            }), 0);
+          };
           for (i = _i = 0, _len = textElements.length; _i < _len; i = ++_i) {
             textElement = textElements[i];
-            if (!((0 < (_ref1 = textElement.bounds[0].y - _this.scrollOffsets.main.y) && _ref1 < _this.mainCanvas.height) || (0 < (_ref2 = textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) && _ref2 < _this.mainCanvas.height))) {
+            if (!(0 < textElement.bounds[0].bottom() - _this.scrollOffsets.main.y + translationVectors[i].y && textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y < _this.mainCanvas.height)) {
               continue;
             }
             div = document.createElement('div');
@@ -5729,79 +5711,57 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div.style.font = _this.fontSize + 'px Courier New';
             div.style.position = 'absolute';
             div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + "px";
-            div.style.top = "" + (textElement.bounds[0].y + _this.scrollOffsets.main.y + translationVectors[i].y) + "px";
+            div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + "px";
+            div.className = 'ice-transitioning-element';
+            translatingElements.push(div);
             _this.transitionContainer.appendChild(div);
-            translatingElements.push({
-              div: div,
-              position: {
-                x: textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x,
-                y: textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y
-              },
-              vector: translationVectors[i]
-            });
+            _fn(div, textElement);
           }
           top = Math.max(_this.aceEditor.getFirstVisibleRow(), 0);
           bottom = Math.min(_this.aceEditor.getLastVisibleRow(), _this.view.getViewNodeFor(_this.tree).lineLength - 1);
           treeView = _this.view.getViewNodeFor(_this.tree);
           lineHeight = _this.aceEditor.renderer.layerConfig.lineHeight;
           aceScrollTop = _this.aceEditor.session.getScrollTop();
+          _fn1 = function(div, line) {
+            return setTimeout((function() {
+              div.style.left = 0;
+              return div.style.top = "" + (treeView.bounds[line].y + treeView.distanceToBase[line].above - _this.fontSize) + "px";
+            }), 0);
+          };
           for (line = _j = top; top <= bottom ? _j <= bottom : _j >= bottom; line = top <= bottom ? ++_j : --_j) {
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = line + 1;
             div.style.font = _this.fontSize + 'px Courier New';
-            div.style.boxSizing = 'border-box';
-            div.style.position = 'absolute';
-            div.style.zIndex = 300;
             div.style.width = "" + _this.aceEditor.renderer.$gutter.offsetWidth + "px";
-            div.style.textAlign = 'right';
-            div.style.paddingRight = '10px';
             div.style.left = 0;
-            div.style.top = "" + (lineHeight * line) + "px";
-            translatingElements.push({
-              div: div,
-              position: {
-                x: 0,
-                y: lineHeight * line - aceScrollTop + _this.scrollOffsets.main.y
-              },
-              vector: new draw.Point(0, lineHeight * line - (treeView.bounds[line].y + treeView.distanceToBase[line].above - _this.fontSize) - aceScrollTop + _this.scrollOffsets.main.y)
-            });
+            div.style.top = "" + (lineHeight * line - aceScrollTop + _this.scrollOffsets.main.y) + "px";
+            div.className = 'ice-transitioning-element ice-transitioning-gutter';
+            translatingElements.push(div);
             _this.mainScrollerStuffing.appendChild(div);
+            _fn1(div, line);
           }
           _this.paletteWrapper.style.opacity = _this.mainCanvas.style.opacity = _this.highlightCanvas.style.opacity = 0;
-          tick = function(count) {
-            var element, _k, _l, _len1, _len2, _results;
-            if (count < ANIMATION_FRAME_RATE * 2) {
-              setTimeout((function() {
-                return tick(count + 1);
-              }), 1000 / ANIMATION_FRAME_RATE);
+          setTimeout((function() {
+            return _this.paletteWrapper.style.opacity = _this.mainCanvas.style.opacity = _this.highlightCanvas.style.opacity = 1;
+          }), 500);
+          return setTimeout((function() {
+            var _k, _len1, _results;
+            _this.paletteWrapper.className.replace(/\ ice-fade-in/, '');
+            _this.mainCanvas.className.replace(/\ ice-fade-in/, '');
+            _this.highlightCanvas.className.replace(/\ ice-fade-in/, '');
+            _this.currentlyAnimating = false;
+            _this.gutter.style.left = '0';
+            _this.gutter.style.top = '0';
+            _this.redrawMain();
+            _this.paletteHeader.style.zIndex = 257;
+            _results = [];
+            for (_k = 0, _len1 = translatingElements.length; _k < _len1; _k++) {
+              div = translatingElements[_k];
+              _results.push(div.parentNode.removeChild(div));
             }
-            if (count < ANIMATION_FRAME_RATE) {
-              for (_k = 0, _len1 = translatingElements.length; _k < _len1; _k++) {
-                element = translatingElements[_k];
-                element.position.x += -element.vector.x / ANIMATION_FRAME_RATE;
-                element.position.y += -element.vector.y / ANIMATION_FRAME_RATE;
-                element.div.style.left = "" + element.position.x + "px";
-                element.div.style.top = "" + element.position.y + "px";
-              }
-            } else {
-              _this.paletteWrapper.style.opacity = _this.mainCanvas.style.opacity = _this.highlightCanvas.style.opacity = Math.max(0, 1 - 2 * (2 - count / ANIMATION_FRAME_RATE));
-            }
-            if (count === ANIMATION_FRAME_RATE * 2) {
-              _this.currentlyAnimating = false;
-              _this.gutter.style.left = '0';
-              _this.gutter.style.top = '0';
-              _this.redrawMain();
-              _this.paletteHeader.style.zIndex = 257;
-              _results = [];
-              for (_l = 0, _len2 = translatingElements.length; _l < _len2; _l++) {
-                element = translatingElements[_l];
-                _results.push(element.div.parentNode.removeChild(element.div));
-              }
-              return _results;
-            }
-          };
-          return tick(0);
+            return _results;
+          }), 1000);
         }), 0);
         return {
           success: true
