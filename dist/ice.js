@@ -4276,7 +4276,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       var head, highlight, mainPoint, palettePoint, position, _ref, _ref1, _ref2, _ref3,
         _this = this;
       if (this.draggingBlock != null) {
-        position = new draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
+        position = new draw.Point(point.x + this.draggingOffset.x + getOffsetLeft(this.iceElement), point.y + this.draggingOffset.y + getOffsetTop(this.iceElement));
         this.dragCanvas.style.top = "" + position.y + "px";
         this.dragCanvas.style.left = "" + position.x + "px";
         mainPoint = this.trackerPointToMain(position);
@@ -5791,6 +5791,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.paletteHeader.style.fontSize = "" + fontSize + "px";
         this.view.opts.textHeight = fontSize;
         this.view.clearCache();
+        this.dragView.opts.textHeight = fontSize;
+        this.dragView.clearCache();
         this.redrawMain();
         return this.redrawPalette();
       }
