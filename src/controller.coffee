@@ -874,19 +874,11 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       mainPoint = @trackerPointToMain(position)
 
-      # If we are below the document, append to the document.
-      if mainPoint.y > @view.getViewNodeFor(@tree).getBounds().bottom() and mainPoint.x > 0
-        head = @tree.end
-        until head.type is 'blockEnd' or head is @tree.start then head = head.prev
-
-        if head is @tree.start then highlight = @tree
-        else highlight = head.container
-
       # If we are dragging a block,
       # we can drop on any Block not in a socket,
       # any Indent, or any Socket that does
       # not contain a block.
-      else if @draggingBlock.type is 'block'
+      if @draggingBlock.type is 'block'
         highlight = @tree.find ((block) =>
           (block.parent?.type isnt 'socket') and
             @view.getViewNodeFor(block).dropArea? and
@@ -1943,12 +1935,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @moveCursorTo @cursor.next.next
     @scrollCursorIntoPosition()
 
-  hook 'key.left', 0, ->
+  hook 'key.shift tab', 0, ->
     if @socketFocus?
-      if @hiddenInput.selectionEnd is 0
-        head = @socketFocus.start
-
-      else return
+      head = @socketFocus.start
 
     else
       head = @cursor
@@ -1959,12 +1948,11 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     if head?
       @setTextInputFocus head.container, -1, -1
 
-  hook 'key.right', 0, ->
-    if @socketFocus?
-      if @hiddenInput.selectionEnd is @hiddenInput.value.length
-        head = @socketFocus.end
+    return false
 
-      else return
+  hook 'key.tab', 0, ->
+    if @socketFocus?
+      head = @socketFocus.end
 
     else
       head = @cursor
@@ -1974,6 +1962,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     if head?
       @setTextInputFocus head.container
+
+    return false
 
   Editor::deleteAtCursor = ->
     # Unfocus any inputs, which could get in the way.
