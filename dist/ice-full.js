@@ -4366,24 +4366,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     });
     hook('mousemove', 0, function(point, event, state) {
-      var head, highlight, mainPoint, palettePoint, position, _ref, _ref1, _ref2, _ref3,
+      var highlight, mainPoint, palettePoint, position, _ref, _ref1, _ref2, _ref3,
         _this = this;
       if (this.draggingBlock != null) {
         position = new draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
         this.dragCanvas.style.top = "" + (position.y + getOffsetTop(this.iceElement)) + "px";
         this.dragCanvas.style.left = "" + (position.x + getOffsetLeft(this.iceElement)) + "px";
         mainPoint = this.trackerPointToMain(position);
-        if (mainPoint.y > this.view.getViewNodeFor(this.tree).getBounds().bottom() && mainPoint.x > 0) {
-          head = this.tree.end;
-          while (!(head.type === 'blockEnd' || head === this.tree.start)) {
-            head = head.prev;
-          }
-          if (head === this.tree.start) {
-            highlight = this.tree;
-          } else {
-            highlight = head.container;
-          }
-        } else if (this.draggingBlock.type === 'block') {
+        if (this.draggingBlock.type === 'block') {
           highlight = this.tree.find((function(block) {
             var _ref;
             return (((_ref = block.parent) != null ? _ref.type : void 0) !== 'socket') && (_this.view.getViewNodeFor(block).dropArea != null) && _this.view.getViewNodeFor(block).dropArea.contains(mainPoint);
@@ -5257,14 +5247,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.moveCursorTo(this.cursor.next.next);
       return this.scrollCursorIntoPosition();
     });
-    hook('key.left', 0, function() {
+    hook('key.shift tab', 0, function() {
       var head;
       if (this.socketFocus != null) {
-        if (this.hiddenInput.selectionEnd === 0) {
-          head = this.socketFocus.start;
-        } else {
-          return;
-        }
+        head = this.socketFocus.start;
       } else {
         head = this.cursor;
       }
@@ -5272,17 +5258,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         head = head.prev;
       }
       if (head != null) {
-        return this.setTextInputFocus(head.container, -1, -1);
+        this.setTextInputFocus(head.container, -1, -1);
       }
+      return false;
     });
-    hook('key.right', 0, function() {
+    hook('key.tab', 0, function() {
       var head;
       if (this.socketFocus != null) {
-        if (this.hiddenInput.selectionEnd === this.hiddenInput.value.length) {
-          head = this.socketFocus.end;
-        } else {
-          return;
-        }
+        head = this.socketFocus.end;
       } else {
         head = this.cursor;
       }
@@ -5290,8 +5273,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         head = head.next;
       }
       if (head != null) {
-        return this.setTextInputFocus(head.container);
+        this.setTextInputFocus(head.container);
       }
+      return false;
     });
     Editor.prototype.deleteAtCursor = function() {
       var blockEnd, _ref;
