@@ -375,11 +375,19 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     # Draw highlights around marked lines
     @clearHighlightCanvas()
 
-    for line, path of @markedLines
-      path.draw @highlightCtx
+    for line, info of @markedLines
+      if @inTree info.model
+        path = @getHighlightPath info.model, info.style
+        path.draw @highlightCtx
+      else
+        delete @markedLines[line]
       
-    for id, path of @extraMarks
-      path.draw @highlightCtx
+    for id, info of @extraMarks
+      if @inTree info.model
+        path = @getHighlightPath info.model, info.style
+        path.draw @highlightCtx
+      else
+        delete @extraMarks[id]
 
     @drawCursor()
 
@@ -1236,16 +1244,18 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     if state.consumedHitTest then return
 
     palettePoint = @trackerPointToPalette point
-    for block in @currentPaletteBlocks
-      hitTestResult = @hitTest palettePoint, block
+    if @scrollOffsets.palette.y < palettePoint.y < @scrollOffsets.palette.y + @paletteCanvas.height and
+       @scrollOffsets.palette.x < palettePoint.x < @scrollOffsets.palette.x + @paletteCanvas.width
 
-      if hitTestResult?
-        @clickedBlock = block
-        @clickedPoint = point
-        @clickedBlockIsPaletteBlock = true
-        state.consumedHitTest = true
-        return
+      for block in @currentPaletteBlocks
+        hitTestResult = @hitTest palettePoint, block
 
+        if hitTestResult?
+          @clickedBlock = block
+          @clickedPoint = point
+          @clickedBlockIsPaletteBlock = true
+          state.consumedHitTest = true
+          return
 
     @clickedBlockIsPaletteBlock = false
 
@@ -1470,7 +1480,10 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
           throw new Error 'Socket is split.'
 
       catch
-        @extraMarks[@socketFocus.id] = @getErrorPath @socketFocus, color: '#F00'
+        @extraMarks[@socketFocus.id] =
+          model: @socketFocus
+          style: {color: '#F00'}
+
         @redrawMain()
 
     # Now we're done with the old focus,
@@ -1951,35 +1964,26 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @moveCursorTo @cursor.next.next
     @scrollCursorIntoPosition()
 
-  hook 'key.shift tab', 0, ->
-    if @socketFocus?
-      head = @socketFocus.start
-
-    else
-      head = @cursor
-
-    until (not head?) or head.type is 'socketEnd' and head.container.start.next.type is 'text'
-      head = head.prev
-
-    if head?
-      @setTextInputFocus head.container, -1, -1
-
-    return false
-
   hook 'key.tab', 0, ->
-    if @socketFocus?
-      head = @socketFocus.end
+    if @shiftKeyPressed
+      if @socketFocus? then head = @socketFocus.start
+      else head = @cursor
 
+      until (not head?) or head.type is 'socketEnd' and head.container.start.next.type is 'text'
+        head = head.prev
+      if head?
+        @setTextInputFocus head.container, -1, -1
+      return false
+    
     else
-      head = @cursor
+      if @socketFocus? then head = @socketFocus.end
+      else head = @cursor
 
-    until (not head?) or head.type is 'socketStart' and head.container.start.next.type is 'text'
-      head = head.next
-
-    if head?
-      @setTextInputFocus head.container
-
-    return false
+      until (not head?) or head.type is 'socketStart' and head.container.start.next.type is 'text'
+        head = head.next
+      if head?
+        @setTextInputFocus head.container
+      return false
 
   Editor::deleteAtCursor = ->
     # Unfocus any inputs, which could get in the way.
@@ -2056,6 +2060,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @redrawMain()
       @reparseHandwrittenBlocks()
       @setTextInputFocus newSocket
+    
+    else if @textFocus? then @setTextInputFocus null; @redrawMain()
 
   containsCursor = (block) ->
     head = block.start
@@ -2773,7 +2779,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @markedLines = {}
     @extraMarks = {}
 
-  Editor::getErrorPath = (model, style) ->
+  Editor::getHighlightPath = (model, style) ->
     path = @view.getViewNodeFor(model).path.clone()
 
     path.style.fillColor = null
@@ -2787,7 +2793,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     block = @tree.getBlockOnLine line
 
     if block?
-      @markedLines[line] = @getErrorPath block, style
+      @markedLines[line] =
+        model: block
+        style: style
 
     @redrawMain()
 
@@ -2813,18 +2821,18 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     if not @draggingBlock? and not @clickedBlock? and @hasEvent 'linehover'
       mainPoint = @trackerPointToMain point
 
-      # Brute force find the hovered line
-      for line in [0...@view.getViewNodeFor(@tree).lineLength]
-        if @view.getViewNodeFor(@tree).bounds[line].contains mainPoint
-          # If the hovered line _changed_, fire the event
-          if line isnt @lastHoveredLine then @fireEvent 'linehover', [line: line]
-          @lastHoveredLine = line
-          return
+      treeView = @view.getViewNodeFor @tree
+      
+      if @lastHoveredLine? and treeView.bounds[@lastHoveredLine].contains mainPoint
+        return
+      
+      hoveredLine = @findLineNumberAtCoordinate point.y
 
-      # Fire the event with line: null if there was no hovered line,
-      # but again only if this is news.
-      if @lastHoveredLine isnt null then @fireEvent 'linehover', [line: null]
-      @lastHoveredLine = null
+      unless treeView.bounds[hoveredLine].contains mainPoint
+        hoveredLine = null
+
+      if hoveredLine isnt @lastHoveredLine
+        @fireEvent 'linehover', [line: @lastHoveredLine = hoveredLine]
 
   # GET/SET VALUE SUPPORT
   # ================================
@@ -3148,14 +3156,17 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     pivot = Math.floor (start + end) / 2
 
     while treeView.bounds[pivot].y isnt coord and start < end
-      end = pivot - 1 if treeView.bounds[pivot].y > coord
-      start = pivot + 1 if treeView.bounds[pivot].y < coord
+      
+      if start is pivot or end is pivot
+        return pivot
+
+      end = pivot if treeView.bounds[pivot].y > coord
+      start = pivot if treeView.bounds[pivot].y < coord
 
       if end < 0 then return 0
       if start >= treeView.bounds.length then return treeView.bounds.length - 1
 
       pivot = Math.floor (start + end) / 2
-
 
     return pivot
 
