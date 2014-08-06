@@ -2521,8 +2521,21 @@
         };
 
         BlockViewNode.prototype.computeOwnDropArea = function() {
+          var highlightAreaPoints, lastBounds, point, _i, _len;
           this.dropArea = new draw.Rectangle(this.bounds[this.lineLength - 1].x, this.bounds[this.lineLength - 1].bottom() - this.view.opts.dropAreaHeight / 2, this.bounds[this.lineLength - 1].width, this.view.opts.dropAreaHeight).toPath();
-          this.highlightArea = new draw.Rectangle(this.bounds[this.lineLength - 1].x, this.bounds[this.lineLength - 1].bottom() - this.view.opts.highlightAreaHeight / 2, this.bounds[this.lineLength - 1].width, this.view.opts.highlightAreaHeight).toPath();
+          this.highlightArea = new draw.Path();
+          highlightAreaPoints = [];
+          lastBounds = this.bounds[this.lineLength - 1];
+          highlightAreaPoints.push(new draw.Point(lastBounds.x, lastBounds.bottom() - this.view.opts.highlightAreaHeight / 2));
+          this.addTabReverse(highlightAreaPoints, new draw.Point(lastBounds.x + this.view.opts.tabOffset, lastBounds.bottom() - this.view.opts.highlightAreaHeight / 2));
+          highlightAreaPoints.push(new draw.Point(lastBounds.right(), lastBounds.bottom() - this.view.opts.highlightAreaHeight / 2));
+          highlightAreaPoints.push(new draw.Point(lastBounds.right(), lastBounds.bottom() + this.view.opts.highlightAreaHeight / 2));
+          this.addTab(highlightAreaPoints, new draw.Point(lastBounds.x + this.view.opts.tabOffset, lastBounds.bottom() + this.view.opts.highlightAreaHeight / 2));
+          highlightAreaPoints.push(new draw.Point(lastBounds.x, lastBounds.bottom() + this.view.opts.highlightAreaHeight / 2));
+          for (_i = 0, _len = highlightAreaPoints.length; _i < _len; _i++) {
+            point = highlightAreaPoints[_i];
+            this.highlightArea.push(point);
+          }
           this.highlightArea.style.lineWidth = 1;
           this.highlightArea.style.strokeColor = '#fff';
           return this.highlightArea.style.fillColor = '#fff';
@@ -2652,8 +2665,23 @@
         };
 
         IndentViewNode.prototype.computeOwnDropArea = function() {
+          var highlightAreaPoints, lastBounds, point, _i, _len;
           this.dropArea = new draw.Rectangle(this.bounds[1].x, this.bounds[1].y - this.view.opts.dropAreaHeight / 2, Math.max(this.bounds[1].width, this.view.opts.indentDropAreaMinWidth), this.view.opts.dropAreaHeight).toPath();
-          this.highlightArea = new draw.Rectangle(this.bounds[1].x, this.bounds[1].y - this.view.opts.highlightAreaHeight / 2, Math.max(this.bounds[1].width, this.view.opts.indentDropAreaMinWidth), this.view.opts.highlightAreaHeight).toPath();
+          this.highlightArea = new draw.Path();
+          highlightAreaPoints = [];
+          lastBounds = new draw.NoRectangle();
+          lastBounds.copy(this.bounds[1]);
+          lastBounds.width = Math.max(lastBounds.width, this.view.opts.indentDropAreaMinWidth);
+          highlightAreaPoints.push(new draw.Point(lastBounds.x, lastBounds.y - this.view.opts.highlightAreaHeight / 2));
+          this.addTabReverse(highlightAreaPoints, new draw.Point(lastBounds.x + this.view.opts.tabOffset, lastBounds.y - this.view.opts.highlightAreaHeight / 2));
+          highlightAreaPoints.push(new draw.Point(lastBounds.right(), lastBounds.y - this.view.opts.highlightAreaHeight / 2));
+          highlightAreaPoints.push(new draw.Point(lastBounds.right(), lastBounds.y + this.view.opts.highlightAreaHeight / 2));
+          this.addTab(highlightAreaPoints, new draw.Point(lastBounds.x + this.view.opts.tabOffset, lastBounds.y + this.view.opts.highlightAreaHeight / 2));
+          highlightAreaPoints.push(new draw.Point(lastBounds.x, lastBounds.y + this.view.opts.highlightAreaHeight / 2));
+          for (_i = 0, _len = highlightAreaPoints.length; _i < _len; _i++) {
+            point = highlightAreaPoints[_i];
+            this.highlightArea.push(point);
+          }
           this.highlightArea.style.lineWidth = 1;
           this.highlightArea.style.strokeColor = '#fff';
           return this.highlightArea.style.fillColor = '#fff';
@@ -4376,6 +4404,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.dragCanvas.style.top = "" + (position.y + getOffsetTop(this.iceElement)) + "px";
         this.dragCanvas.style.left = "" + (position.x + getOffsetLeft(this.iceElement)) + "px";
         mainPoint = this.trackerPointToMain(position);
+        mainPoint.x += this.view.opts.tabOffset + this.view.opts.tabWidth * (1 - this.view.opts.tabSideWidth);
+        mainPoint.y += this.view.opts.tabHeight;
         if (this.draggingBlock.type === 'block') {
           highlight = this.tree.find((function(block) {
             var _ref;
