@@ -3816,7 +3816,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('ice-controller',['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], function(coffee, draw, model, view) {
-    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BLOCK_ONLY, CreateIndentOperation, CreateSegmentOperation, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DestroyIndentOperation, DestroySegmentOperation, DropOperation, Editor, FloatingBlockRecord, FromFloatingOperation, MAX_DROP_DISTANCE, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, MutationButtonOperation, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, ReparseOperation, SetValueOperation, TOP_TAB_HEIGHT, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, ToFloatingOperation, UndoOperation, VALUE_ONLY, binding, containsCursor, deepCopy, deepEquals, editorBindings, exports, extend_, getOffsetLeft, getOffsetTop, hook, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, unsortedEditorKeyBindings, validateLassoSelection, _i, _j, _len, _len1, _ref, _ref1;
+    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BLOCK_ONLY, CreateIndentOperation, CreateSegmentOperation, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DestroyIndentOperation, DestroySegmentOperation, DropOperation, Editor, FloatingBlockRecord, FromFloatingOperation, MAX_DROP_DISTANCE, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, MutationButtonOperation, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, ReparseOperation, SetValueOperation, TOP_TAB_HEIGHT, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, ToFloatingOperation, UndoOperation, VALUE_ONLY, binding, containsCursor, deepCopy, deepEquals, editorBindings, exports, extend_, getFontHeight, getOffsetLeft, getOffsetTop, hook, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, unsortedEditorKeyBindings, validateLassoSelection, _i, _j, _len, _len1, _ref, _ref1;
     PALETTE_TOP_MARGIN = 5;
     PALETTE_MARGIN = 5;
     MIN_DRAG_DISTANCE = 1;
@@ -3936,7 +3936,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.paletteElement.appendChild(this.paletteWrapper);
         this.standardViewSettings = {
           padding: 5,
-          indentWidth: 15,
+          indentWidth: getFontHeight(15, 'Courier New'),
           indentTongueHeight: 20,
           tabOffset: 10,
           tabWidth: 15,
@@ -6075,7 +6075,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.fontSize = fontSize;
         this.paletteHeader.style.fontSize = "" + fontSize + "px";
         this.gutter.style.fontSize = "" + fontSize + "px";
-        this.view.opts.textHeight = fontSize;
+        this.view.opts.textHeight = getFontHeight(this.fontFamily, this.fontSize);
         this.view.clearCache();
         this.dragView.opts.textHeight = fontSize;
         this.dragView.clearCache();
@@ -6086,6 +6086,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.setFontFamily = function(fontFamily) {
       draw._setGlobalFontFamily(fontFamily);
       this.fontFamily = fontFamily;
+      this.view.opts.textHeight = getFontHeight(this.fontFamily, this.fontSize);
       this.view.clearCache();
       this.dragView.clearCache();
       this.gutter.style.fontFamily = fontFamily;
@@ -6508,6 +6509,25 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.gutter.style.height = "" + (Math.max(this.mainScroller.offsetHeight, treeView.totalBounds.height)) + "px";
       }
     });
+    getFontHeight = function(family, size) {
+      var descent, testElement, testPartner, testWrapper;
+      testElement = document.createElement('span');
+      testElement.innerHTML = 'Hg';
+      testElement.style.fontSize = size;
+      testElement.style.fontFamily = family;
+      testPartner = document.createElement('div');
+      testPartner.style.display = 'inline-block';
+      testPartner.style.width = '1px';
+      testPartner.style.height = '0px';
+      testWrapper = document.createElement('div');
+      testWrapper.style.left = testWrapper.style.top = '-9999px';
+      testWrapper.appendChild(testElement);
+      testWrapper.appendChild(testPartner);
+      document.body.appendChild(testWrapper);
+      testPartner.style.verticalAlign = 'bottom';
+      descent = testPartner.offsetTop - testElement.offsetTop;
+      return testPartner.offsetTop - testElement.offsetTop;
+    };
     Editor.prototype.dumpNodeForDebug = function(hitTestResult, line) {
       console.log('Model node:');
       console.log(hitTestResult.serialize());
