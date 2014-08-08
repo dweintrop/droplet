@@ -5783,7 +5783,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           div = document.createElement('div');
           div.style.whiteSpace = 'pre';
           div.innerText = textElement.model.value;
-          div.style.font = this.fontSize + 'px Courier New';
+          div.style.font = this.fontSize + 'px ' + this.fontFamily;
           div.style.left = "" + (textElement.bounds[0].x - this.scrollOffsets.main.x) + "px";
           div.style.top = "" + (textElement.bounds[0].y - this.scrollOffsets.main.y) + "px";
           div.className = 'ice-transitioning-element';
@@ -5809,7 +5809,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           div.innerText = line + 1;
           div.style.left = 0;
           div.style.top = "" + (treeView.bounds[line].y + treeView.distanceToBase[line].above - this.fontSize) + "px";
-          div.style.font = this.fontSize + 'px Courier New';
+          div.style.font = this.fontSize + 'px ' + this.fontFamily;
           div.style.width = "" + this.gutter.offsetWidth + "px";
           translatingElements.push(div);
           div.className = 'ice-transitioning-element ice-transitioning-gutter';
@@ -5895,7 +5895,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = textElement.model.value;
-            div.style.font = _this.fontSize + 'px Courier New';
+            div.style.font = _this.fontSize + 'px ' + _this.fontFamily;
             div.style.position = 'absolute';
             div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + "px";
             div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + "px";
@@ -5920,7 +5920,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = line + 1;
-            div.style.font = _this.fontSize + 'px Courier New';
+            div.style.font = _this.fontSize + 'px ' + _this.fontFamily;
             div.style.width = "" + _this.aceEditor.renderer.$gutter.offsetWidth + "px";
             div.style.left = 0;
             div.style.top = "" + (lineHeight * line - aceScrollTop + _this.scrollOffsets.main.y) + "px";
@@ -6049,6 +6049,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.setFontFamily = function(fontFamily) {
       draw._setGlobalFontFamily(fontFamily);
+      this.fontFamily = fontFamily;
       this.view.clearCache();
       this.dragView.clearCache();
       this.gutter.style.fontFamily = fontFamily;
