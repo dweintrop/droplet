@@ -10,6 +10,12 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
   MULTILINE_END = 3
   MULTILINE_END_START = 4
 
+  ANY_DROP = 0
+  BLOCK_ONLY = 1
+  MOSTLY_BLOCK = 2
+  MOSTLY_VALUE = 3
+  VALUE_ONLY = 4
+
   DEFAULT_OPTIONS =
     padding: 5
     indentWidth: 10
@@ -1474,7 +1480,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
           parent = @model.parent
           while parent?.type is 'segment' then parent = parent.parent
           parent?.type isnt 'socket'
-        else not @model.valueByDefault
+        else not (@model.socketLevel in [MOSTLY_VALUE, VALUE_ONLY])
 
       computeOwnPath: ->
         super
@@ -1490,12 +1496,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         # height dropAreaHeight and a width
         # equal to our last line width,
         # positioned at the bottom of our last line.
-        @dropArea = new draw.Rectangle(
-          @bounds[@lineLength - 1].x,
-          @bounds[@lineLength - 1].bottom() - @view.opts.dropAreaHeight / 2,
-          @bounds[@lineLength - 1].width,
-          @view.opts.dropAreaHeight
-        ).toPath()
+        @dropPoint = new draw.Point @bounds[@lineLength - 1].x, @bounds[@lineLength - 1].bottom()
 
         # Our highlight area is the a rectangle in the same place,
         # with a height that can be given by a different option.
@@ -1504,12 +1505,21 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         highlightAreaPoints = []
         lastBounds = @bounds[@lineLength - 1]
 
-        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.bottom() - @view.opts.highlightAreaHeight / 2
+        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.bottom() - @view.opts.highlightAreaHeight / 2 + @view.opts.bevelClip
+        highlightAreaPoints.push new draw.Point lastBounds.x + @view.opts.bevelClip, lastBounds.bottom() - @view.opts.highlightAreaHeight / 2
+
         @addTabReverse highlightAreaPoints, new draw.Point lastBounds.x + @view.opts.tabOffset, lastBounds.bottom() - @view.opts.highlightAreaHeight / 2
-        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.bottom() - @view.opts.highlightAreaHeight / 2
-        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.bottom() + @view.opts.highlightAreaHeight / 2
+
+        highlightAreaPoints.push new draw.Point lastBounds.right() - @view.opts.bevelClip, lastBounds.bottom() - @view.opts.highlightAreaHeight / 2
+        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.bottom() - @view.opts.highlightAreaHeight / 2 + @view.opts.bevelClip
+
+        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.bottom() + @view.opts.highlightAreaHeight / 2 - @view.opts.bevelClip
+        highlightAreaPoints.push new draw.Point lastBounds.right() - @view.opts.bevelClip, lastBounds.bottom() + @view.opts.highlightAreaHeight / 2
+
         @addTab highlightAreaPoints, new draw.Point lastBounds.x + @view.opts.tabOffset, lastBounds.bottom() + @view.opts.highlightAreaHeight / 2
-        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.bottom() + @view.opts.highlightAreaHeight / 2
+
+        highlightAreaPoints.push new draw.Point lastBounds.x + @view.opts.bevelClip, lastBounds.bottom() + @view.opts.highlightAreaHeight / 2
+        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.bottom() + @view.opts.highlightAreaHeight / 2 - @view.opts.bevelClip
 
         @highlightArea.push point for point in highlightAreaPoints
 
@@ -1610,7 +1620,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         if @model.start.next.type is 'blockStart'
           @dropArea = @highlightArea = null
         else
-          @dropArea = @path
+          @dropPoint = @bounds[0].upperLeftCorner()
           @highlightArea = @path.clone()
           @highlightArea.noclip = true
           @highlightArea.style.strokeColor = '#FFF'
@@ -1659,15 +1669,10 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
       #
       # Our drop area is a rectangle of
       # height dropAreaHeight and a width
-      # equal to our last line width,
-      # positioned at the bottom of our last line.
+      # equal to our first line width,
+      # positioned at the top of our firs tline
       computeOwnDropArea: ->
-        @dropArea = new draw.Rectangle(
-          @bounds[1].x,
-          @bounds[1].y - @view.opts.dropAreaHeight / 2,
-          Math.max(@bounds[1].width, @view.opts.indentDropAreaMinWidth),
-          @view.opts.dropAreaHeight
-        ).toPath()
+        @dropPoint = @bounds[1].upperLeftCorner()
 
         # Our highlight area is the a rectangle in the same place,
         # with a height that can be given by a different option.
@@ -1679,12 +1684,21 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         lastBounds.copy @bounds[1]
         lastBounds.width = Math.max lastBounds.width, @view.opts.indentDropAreaMinWidth
 
-        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.y - @view.opts.highlightAreaHeight / 2
+        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.y - @view.opts.highlightAreaHeight / 2 + @view.opts.bevelClip
+        highlightAreaPoints.push new draw.Point lastBounds.x + @view.opts.bevelClip, lastBounds.y - @view.opts.highlightAreaHeight / 2
+
         @addTabReverse highlightAreaPoints, new draw.Point lastBounds.x + @view.opts.tabOffset, lastBounds.y - @view.opts.highlightAreaHeight / 2
-        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.y - @view.opts.highlightAreaHeight / 2
-        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.y + @view.opts.highlightAreaHeight / 2
+
+        highlightAreaPoints.push new draw.Point lastBounds.right() - @view.opts.bevelClip, lastBounds.y - @view.opts.highlightAreaHeight / 2
+        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.y - @view.opts.highlightAreaHeight / 2 + @view.opts.bevelClip
+
+        highlightAreaPoints.push new draw.Point lastBounds.right(), lastBounds.y + @view.opts.highlightAreaHeight / 2 - @view.opts.bevelClip
+        highlightAreaPoints.push new draw.Point lastBounds.right() - @view.opts.bevelClip, lastBounds.y + @view.opts.highlightAreaHeight / 2
+
         @addTab highlightAreaPoints, new draw.Point lastBounds.x + @view.opts.tabOffset, lastBounds.y + @view.opts.highlightAreaHeight / 2
-        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.y + @view.opts.highlightAreaHeight / 2
+
+        highlightAreaPoints.push new draw.Point lastBounds.x + @view.opts.bevelClip, lastBounds.y + @view.opts.highlightAreaHeight / 2
+        highlightAreaPoints.push new draw.Point lastBounds.x, lastBounds.y + @view.opts.highlightAreaHeight / 2 - @view.opts.bevelClip
 
         @highlightArea.push point for point in highlightAreaPoints
 
@@ -1711,12 +1725,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         if @model.isLassoSegment
           return @dropArea = null
         else
-          @dropArea = new draw.Rectangle(
-            @bounds[0].x
-            @bounds[0].y - @view.opts.dropAreaHeight / 2
-            Math.max(@bounds[0].width, @view.opts.indentDropAreaMinWidth)
-            @view.opts.dropAreaHeight
-          ).toPath()
+          @dropPoint = @bounds[0].upperLeftCorner()
 
           @highlightArea = new draw.Rectangle(
             @bounds[0].x

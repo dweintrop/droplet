@@ -7,11 +7,19 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # ## Magic constants
   PALETTE_TOP_MARGIN = 5
   PALETTE_MARGIN = 5
-  MIN_DRAG_DISTANCE = 5
+  MIN_DRAG_DISTANCE = 1
   PALETTE_LEFT_MARGIN = 5
   DEFAULT_INDENT_DEPTH = '  '
   ANIMATION_FRAME_RATE = 60
   TOP_TAB_HEIGHT = 20
+  DISCOURAGE_DROP_TIMEOUT = 1000
+  MAX_DROP_DISTANCE = 100
+
+  ANY_DROP = 0
+  BLOCK_ONLY = 1
+  MOSTLY_BLOCK = 2
+  MOSTLY_VALUE = 3
+  VALUE_ONLY = 4
 
   exports = {}
 
@@ -42,7 +50,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     if a instanceof Object
       for own key, val of a
         unless deepEquals b[key], val
-          console.log key, b[key], val, 'false'
           return false
       
       for own key, val of b when not key of a
@@ -152,8 +159,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         indentTongueHeight: 20
         tabOffset: 10
         tabWidth: 15
-        tabHeight: 5
-        tabSideWidth: 0.125
+        tabHeight: 4
+        tabSideWidth: 1 / 4
         dropAreaHeight: 20
         indentDropAreaMinWidth: 50
         emptySocketWidth: 20
@@ -860,6 +867,35 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         point.x + @draggingOffset.x,
         point.y + @draggingOffset.y
       )
+      
+      # Construct a quadtree of drop areas
+      # for faster dragging
+      @dropPointQuadTree = QUAD.init
+        x: @scrollOffsets.main.xA
+        y: @scrollOffsets.main.y
+        w: @mainCanvas.width
+        h: @mainCanvas.height
+
+      head = @tree.start
+      until head is @tree.end
+
+        if head is @draggingBlock.start
+          head = @draggingBlock.end
+
+        if head instanceof model.StartToken
+          if @canDrop(@draggingBlock, head.container) or @discourageDrop @draggingBlock, head.container
+            dropPoint = @view.getViewNodeFor(head.container).dropPoint
+
+            if dropPoint?
+              @dropPointQuadTree.insert
+                x: dropPoint.x
+                y: dropPoint.y
+                w: 0
+                h: 0
+                _ice_needs_shift: not @canDrop @draggingBlock, head.container
+                _ice_node: head.container
+              
+        head = head.next
 
       @dragCanvas.style.top = "#{position.y + getOffsetTop(@iceElement)}px"
       @dragCanvas.style.left = "#{position.x + getOffsetLeft(@iceElement)}px"
@@ -885,63 +921,55 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @dragCanvas.style.left = "#{position.x + getOffsetLeft(@iceElement)}px"
 
       mainPoint = @trackerPointToMain(position)
-      mainPoint.x +=@view.opts.tabOffset + @view.opts.tabWidth * (1 - @view.opts.tabSideWidth)
-      mainPoint.y += @view.opts.tabHeight
 
-      # If we are dragging a block,
-      # we can drop on any Block not in a socket,
-      # any Indent, or any Socket that does
-      # not contain a block.
-      if @draggingBlock.type is 'block'
-        highlight = @tree.find ((block) =>
-          (block.parent?.type isnt 'socket') and
-            @view.getViewNodeFor(block).dropArea? and
-            @view.getViewNodeFor(block).dropArea.contains mainPoint), [@draggingBlock]
-
-      # If we are dragging a segment,
-      # we also cannot drop ourselves
-      # into a socket.
-      else if @draggingBlock.type is 'segment'
-        highlight = @tree.find ((block) =>
-          (block.type isnt 'socket') and
-            (block.parent?.type isnt 'socket') and
-            @view.getViewNodeFor(block).dropArea? and
-            @view.getViewNodeFor(block).dropArea.contains mainPoint), [@draggingBlock]
-
-      # For performance reasons,
-      # we will only redraw the main canvas
-      # (and highlight the reigon) if we need
-      # to to change the highlighted block.
-      #
-      # i.e. if nothing has changed, don't
-      # redraw.
-      if highlight isnt @lastHighlight and @canDrop @draggingBlock, highlight
+      best = null; min = Infinity
+      
+      # Find the closest droppable block
+      testPoints = @dropPointQuadTree.retrieve {
+        x: mainPoint.x - MAX_DROP_DISTANCE
+        y: mainPoint.y - MAX_DROP_DISTANCE
+        w: MAX_DROP_DISTANCE * 2
+        h: MAX_DROP_DISTANCE * 2
+      }, (point) =>
+        unless point._ice_needs_shift and not @shiftKeyPressed
+          distance = mainPoint.from(point)
+          distance.y *= 2; distance = distance.magnitude()
+          if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE
+            best = point._ice_node
+            min = distance
+      
+      if best isnt @lastHighlight
         @clearHighlightCanvas()
 
-        if highlight?
-          @view.getViewNodeFor(highlight).highlightArea.draw @highlightCtx
+        if best? then @view.getViewNodeFor(best).highlightArea.draw @highlightCtx
 
-        @lastHighlight = highlight
+        @lastHighlight = best
 
-      # Make the canvas transparent if
-      # we would delete the block
-      palettePoint = @trackerPointToPalette position
-
-      if 0 < palettePoint.x - @scrollOffsets.palette.x < @paletteCanvas.width and
-         0 < palettePoint.y - @scrollOffsets.palette.y < @paletteCanvas.height or not
-         (0 < mainPoint.x - @scrollOffsets.main.x < @mainCanvas.width and
-         0 < mainPoint.y - @scrollOffsets.main.y< @mainCanvas.height)
-        @dragCanvas.style.opacity = 0.7
-      else
-        @dragCanvas.style.opacity = 1
+  hook 'mouseup', 0, ->
+    clearTimeout @discourageDropTimeout; @discourageDropTimeout = null
   
   Editor::canDrop = (drag, drop) ->
+    unless drop? then return false
+    unless @view.getViewNodeFor(drop).dropPoint? then return false
+    if drop.parent?.type is 'socket' then return false
+
     if drop?.type is 'socket'
-      return drop.accepts drag
+      if drag.socketLevel in [ANY_DROP, MOSTLY_VALUE, VALUE_ONLY]
+        return drop.accepts drag
     else
-      return true
+      return drag.socketLevel in [ANY_DROP, MOSTLY_BLOCK, BLOCK_ONLY]
+  
+  Editor::discourageDrop = (drag, drop) ->
+    unless drop? then return false
+
+    if drop?.type is 'socket'
+      if drag.socketLevel in [MOSTLY_BLOCK]
+        return drop.accepts drag
+    else
+      return drag.socketLevel in [MOSTLY_VALUE]
+
     
-  hook 'mouseup', 0, (point, event, state) ->
+  hook 'mouseup', 1, (point, event, state) ->
     # We will consume this event iff we dropped it successfully
     # in the root tree.
     if @draggingBlock? and @lastHighlight?
@@ -1042,7 +1070,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       block = block.parent
 
     return block is @tree
-
+  
   # We can create floating blocks by dropping
   # blocks without a highlight.
   hook 'mouseup', 0, (point, event, state) ->
@@ -1072,7 +1100,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       palettePoint = @trackerPointToPalette point
       if 0 < palettePoint.x - @scrollOffsets.palette.x < @paletteCanvas.width and
          0 < palettePoint.y - @scrollOffsets.palette.y < @paletteCanvas.height or not
-         (0 < renderPoint.x - @scrollOffsets.main.x < @mainCanvas.width and
+         (-@gutter.offsetWidth < renderPoint.x - @scrollOffsets.main.x < @mainCanvas.width and
          0 < renderPoint.y - @scrollOffsets.main.y< @mainCanvas.height)
         @draggingBlock = null
         @draggingOffset = null
@@ -1081,10 +1109,14 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         @clearDrag()
         @redrawMain()
         return
+      
+      else if renderPoint.x - @scrollOffsets.main.x < 0
+        renderPoint.x = @scrollOffsets.main.x
 
       # Add the undo operation associated
       # with creating this floating block
       @addMicroUndoOperation new ToFloatingOperation @draggingBlock, renderPoint
+
 
       # Add this block to our list of floating blocks
       @floatingBlocks.push new FloatingBlockRecord(
@@ -1327,7 +1359,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     # The hidden input should be set up
     # to mirror the text to which it is associated.
-    for event in ['input', 'keyup', 'keydown']
+    for event in ['input', 'keyup', 'keydown', 'select']
       @hiddenInput.addEventListener event, =>
         if @textFocus?
           @populateSocket @textFocus, @hiddenInput.value
@@ -1564,7 +1596,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     row = Math.max row, 0
     row = Math.min row, textFocusView.lineLength - 1
 
-    column = Math.max 0, Math.round((point.x - textFocusView.bounds[row].x - @view.opts.padding) / @mainCtx.measureText(' ').width)
+    column = Math.max 0, Math.round((point.x - textFocusView.bounds[row].x - @view.opts.textPadding) / @mainCtx.measureText(' ').width)
 
     lines = @textFocus.stringify().split('\n')[..row]
     lines[lines.length - 1] = lines[lines.length - 1][...column]
@@ -2722,6 +2754,14 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @dragView.opts.textHeight = fontSize
       @dragView.clearCache()
       @redrawMain(); @redrawPalette()
+
+  Editor::setFontFamily = (fontFamily) ->
+    draw._setGlobalFontFamily fontFamily
+
+    @view.clearCache(); @dragView.clearCache()
+    @gutter.style.fontFamily = fontFamily
+
+    @redrawMain(); @redrawPalette()
 
   Editor::setFontSize = (fontSize) ->
     @aceEditor.setFontSize fontSize
