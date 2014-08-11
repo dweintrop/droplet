@@ -1,3 +1,10 @@
+@font-face {
+  font-family: 'Source Code Pro';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Source Code Pro'), local('SourceCodePro-Regular'), url(http://fonts.gstatic.com/s/sourcecodepro/v5/mrl8jkM18OlOQN8JLgasDxM0YzuT7MdOe03otPbuUS0.woff) format('woff');
+}
+
 .ice-palette-canvas, .ice-drag-canvas, .ice-main-canvas, .ice-lasso-select-canvas, .ice-highlight-canvas {
   position: absolute;
 }
@@ -152,6 +159,8 @@
   min-width: 50px;
   height: 100%;
   box-sizing: border-box;
+  font-size: 15px;
+  font-family: Courier New;
 }
 .ice-gutter-line {
   position: absolute;
@@ -159,7 +168,6 @@
   text-align: right;
   padding-right: 13px;
   width: 100%;
-  font-family: Courier New;
 }
 .ice-drag-cover {
   position: absolute;
