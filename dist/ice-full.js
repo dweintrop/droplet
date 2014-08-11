@@ -6449,6 +6449,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.iceElement.style.left = "" + this.paletteWrapper.offsetWidth + "px";
         this.aceElement.style.top = this.aceElement.style.left = '-9999px';
         this.currentlyUsingBlocks = true;
+        this.lineNumberWrapper.style.display = 'block';
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 1;
         this.resize();
         return this.redrawMain();
@@ -6460,6 +6461,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.iceElement.style.top = this.iceElement.style.left = this.paletteWrapper.style.top = this.paletteWrapper.style.left = '-9999px';
         this.aceElement.style.top = this.aceElement.style.left = '0px';
         this.currentlyUsingBlocks = false;
+        this.lineNumberWrapper.style.display = 'none';
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 0;
         return this.resize();
       }
