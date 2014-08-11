@@ -39,7 +39,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; };
 
   define('ice-draw',[],function() {
-    var NoRectangle, Path, Point, Rectangle, Size, Text, avgColor, exports, max, memoizedAvgColor, min, toHex, toRGB, twoDigitHex, zeroPad, _CTX, _FONT_FAMILY, _FONT_SIZE, _area, _intersects;
+    var NoRectangle, Path, Point, Rectangle, Size, Text, avgColor, exports, fontMetrics, fontMetricsCache, max, memoizedAvgColor, min, refreshFontCapital, toHex, toRGB, twoDigitHex, zeroPad, _CTX, _FONT_CAPITAL, _FONT_FAMILY, _FONT_SIZE, _area, _intersects;
     _area = function(a, b, c) {
       return (b.x - a.x) * (c.y - a.y) - (c.x - a.x) * (b.y - a.y);
     };
@@ -574,20 +574,91 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
         ctx.textBaseline = 'top';
         ctx.font = _FONT_SIZE + 'px ' + _FONT_FAMILY;
         ctx.fillStyle = '#000';
-        return ctx.fillText(this.value, this.point.x, this.point.y);
+        return ctx.fillText(this.value, this.point.x, this.point.y - _FONT_CAPITAL);
       };
 
       return Text;
 
     })();
+    fontMetricsCache = {};
+    fontMetrics = function(fontFamily, fontHeight) {
+      var baseline, canvas, capital, ctx, ex, fontStyle, gp, height, lf, metrics, result, textTopAndBottom, width;
+      fontStyle = "" + fontHeight + "px " + fontFamily;
+      result = fontMetricsCache[fontStyle];
+      textTopAndBottom = function(testText) {
+        var col, first, index, last, pixels, right, row, _i, _j;
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, width, height);
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = 'white';
+        ctx.fillText(testText, 0, 0);
+        right = Math.ceil(ctx.measureText(testText).width);
+        pixels = ctx.getImageData(0, 0, width, height).data;
+        first = -1;
+        last = height;
+        for (row = _i = 0; 0 <= height ? _i < height : _i > height; row = 0 <= height ? ++_i : --_i) {
+          for (col = _j = 1; 1 <= right ? _j < right : _j > right; col = 1 <= right ? ++_j : --_j) {
+            index = (row * width + col) * 4;
+            if (pixels[index] !== 0) {
+              if (first < 0) {
+                first = row;
+              }
+              break;
+            }
+          }
+          if (first >= 0 && col >= right) {
+            last = row;
+            break;
+          }
+        }
+        return {
+          top: first,
+          bottom: last
+        };
+      };
+      if (!result) {
+        canvas = document.createElement('canvas');
+        ctx = canvas.getContext('2d');
+        ctx.font = fontStyle;
+        metrics = ctx.measureText('Hg');
+        if (canvas.height < fontHeight * 2 || canvas.width < metrics.width) {
+          canvas.width = Math.ceil(metrics.width);
+          canvas.height = fontHeight * 2;
+          ctx = canvas.getContext('2d');
+          ctx.font = fontStyle;
+        }
+        width = canvas.width;
+        height = canvas.height;
+        capital = textTopAndBottom('H');
+        ex = textTopAndBottom('x');
+        lf = textTopAndBottom('lf');
+        gp = textTopAndBottom('g');
+        baseline = capital.bottom;
+        result = {
+          ascent: lf.top,
+          capital: capital.top,
+          ex: ex.top,
+          baseline: capital.bottom,
+          descent: gp.bottom
+        };
+        fontMetricsCache[fontStyle] = result;
+      }
+      return result;
+    };
+    _FONT_CAPITAL = 2;
+    refreshFontCapital = function() {
+      return _FONT_CAPITAL = fontMetrics(_FONT_FAMILY, _FONT_SIZE).ascent;
+    };
     exports._setCTX = function(ctx) {
       return _CTX = ctx;
     };
     exports._setGlobalFontSize = function(size) {
-      return _FONT_SIZE = size;
+      _FONT_SIZE = size;
+      return refreshFontCapital();
     };
     exports._setGlobalFontFamily = function(family) {
-      return _FONT_FAMILY = family;
+      _FONT_FAMILY = family;
+      return refreshFontCapital();
     };
     exports._getGlobalFontSize = function() {
       return _FONT_SIZE;
@@ -2604,8 +2675,8 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
             this.highlightArea.push(point);
           }
           this.highlightArea.style.lineWidth = 1;
-          this.highlightArea.style.strokeColor = '#fff';
-          return this.highlightArea.style.fillColor = '#fff';
+          this.highlightArea.style.strokeColor = '#ff0';
+          return this.highlightArea.style.fillColor = '#ff0';
         };
 
         return BlockViewNode;
@@ -2753,8 +2824,8 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
             this.highlightArea.push(point);
           }
           this.highlightArea.style.lineWidth = 1;
-          this.highlightArea.style.strokeColor = '#fff';
-          return this.highlightArea.style.fillColor = '#fff';
+          this.highlightArea.style.strokeColor = '#ff0';
+          return this.highlightArea.style.fillColor = '#ff0';
         };
 
         return IndentViewNode;
@@ -2773,13 +2844,32 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
         };
 
         SegmentViewNode.prototype.computeOwnDropArea = function() {
+          var highlightAreaPoints, lastBounds, point, _i, _len;
           if (this.model.isLassoSegment) {
             return this.dropArea = null;
           } else {
             this.dropPoint = this.bounds[0].upperLeftCorner();
-            this.highlightArea = new draw.Rectangle(this.bounds[0].x, this.bounds[0].y - this.view.opts.highlightAreaHeight / 2, Math.max(this.bounds[0].width, this.view.opts.indentDropAreaMinWidth), this.view.opts.highlightAreaHeight).toPath();
-            this.highlightArea.style.fillColor = '#fff';
-            this.highlightArea.style.strokeColor = '#fff';
+            this.highlightArea = new draw.Path();
+            highlightAreaPoints = [];
+            lastBounds = new draw.NoRectangle();
+            lastBounds.copy(this.bounds[0]);
+            lastBounds.width = Math.max(lastBounds.width, this.view.opts.indentDropAreaMinWidth);
+            highlightAreaPoints.push(new draw.Point(lastBounds.x, lastBounds.y - this.view.opts.highlightAreaHeight / 2 + this.view.opts.bevelClip));
+            highlightAreaPoints.push(new draw.Point(lastBounds.x + this.view.opts.bevelClip, lastBounds.y - this.view.opts.highlightAreaHeight / 2));
+            this.addTabReverse(highlightAreaPoints, new draw.Point(lastBounds.x + this.view.opts.tabOffset, lastBounds.y - this.view.opts.highlightAreaHeight / 2));
+            highlightAreaPoints.push(new draw.Point(lastBounds.right() - this.view.opts.bevelClip, lastBounds.y - this.view.opts.highlightAreaHeight / 2));
+            highlightAreaPoints.push(new draw.Point(lastBounds.right(), lastBounds.y - this.view.opts.highlightAreaHeight / 2 + this.view.opts.bevelClip));
+            highlightAreaPoints.push(new draw.Point(lastBounds.right(), lastBounds.y + this.view.opts.highlightAreaHeight / 2 - this.view.opts.bevelClip));
+            highlightAreaPoints.push(new draw.Point(lastBounds.right() - this.view.opts.bevelClip, lastBounds.y + this.view.opts.highlightAreaHeight / 2));
+            this.addTab(highlightAreaPoints, new draw.Point(lastBounds.x + this.view.opts.tabOffset, lastBounds.y + this.view.opts.highlightAreaHeight / 2));
+            highlightAreaPoints.push(new draw.Point(lastBounds.x + this.view.opts.bevelClip, lastBounds.y + this.view.opts.highlightAreaHeight / 2));
+            highlightAreaPoints.push(new draw.Point(lastBounds.x, lastBounds.y + this.view.opts.highlightAreaHeight / 2 - this.view.opts.bevelClip));
+            for (_i = 0, _len = highlightAreaPoints.length; _i < _len; _i++) {
+              point = highlightAreaPoints[_i];
+              this.highlightArea.push(point);
+            }
+            this.highlightArea.style.fillColor = '#ff0';
+            this.highlightArea.style.strokeColor = '#ff0';
             return null;
           }
         };
@@ -3837,7 +3927,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('ice-controller',['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], function(coffee, draw, model, view) {
-    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BLOCK_ONLY, CreateIndentOperation, CreateSegmentOperation, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DestroyIndentOperation, DestroySegmentOperation, DropOperation, Editor, FloatingBlockRecord, FromFloatingOperation, MAX_DROP_DISTANCE, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, MutationButtonOperation, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, ReparseOperation, SetValueOperation, TOP_TAB_HEIGHT, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, ToFloatingOperation, UndoOperation, VALUE_ONLY, binding, containsCursor, deepCopy, deepEquals, editorBindings, exports, extend_, getFontHeight, getOffsetLeft, getOffsetTop, hook, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, unsortedEditorKeyBindings, validateLassoSelection, _i, _j, _len, _len1, _ref, _ref1;
+    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BLOCK_ONLY, CreateSegmentOperation, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DestroySegmentOperation, DropOperation, Editor, FloatingBlockRecord, FromFloatingOperation, MAX_DROP_DISTANCE, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, MutationButtonOperation, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, ReparseOperation, SetValueOperation, TOP_TAB_HEIGHT, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, ToFloatingOperation, UndoOperation, VALUE_ONLY, binding, containsCursor, deepCopy, deepEquals, editorBindings, exports, extend_, fontMetrics, fontMetricsCache, getFontHeight, getOffsetLeft, getOffsetTop, hook, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, unsortedEditorKeyBindings, validateLassoSelection, _i, _j, _len, _len1, _ref, _ref1;
     PALETTE_TOP_MARGIN = 5;
     PALETTE_MARGIN = 5;
     MIN_DRAG_DISTANCE = 1;
@@ -3933,11 +4023,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     exports.Editor = Editor = (function() {
-      function Editor(wrapperElement, paletteElement, paletteGroups) {
+      function Editor(wrapperElement, paletteGroups) {
         var binding, boundListeners, combo, elements, eventName, fns, _fn, _fn1, _i, _len, _ref, _ref1, _ref2,
           _this = this;
         this.wrapperElement = wrapperElement;
-        this.paletteElement = paletteElement;
         this.paletteGroups = paletteGroups;
         this.debugging = true;
         this.iceElement = document.createElement('div');
@@ -3948,13 +4037,19 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.mainCanvas.className = 'ice-main-canvas';
         this.mainCtx = this.mainCanvas.getContext('2d');
         this.iceElement.appendChild(this.mainCanvas);
-        this.paletteWrapper = document.createElement('div');
+        this.paletteWrapper = this.paletteElement = document.createElement('div');
         this.paletteWrapper.className = 'ice-palette-wrapper';
         this.paletteCanvas = document.createElement('canvas');
         this.paletteCanvas.className = 'ice-palette-canvas';
         this.paletteCtx = this.paletteCanvas.getContext('2d');
         this.paletteWrapper.appendChild(this.paletteCanvas);
-        this.paletteElement.appendChild(this.paletteWrapper);
+        this.paletteElement.style.position = 'absolute';
+        this.paletteElement.style.left = '0px';
+        this.paletteElement.style.top = '0px';
+        this.paletteElement.style.bottom = '0px';
+        this.paletteElement.style.width = '300px';
+        this.iceElement.style.left = this.paletteElement.offsetWidth + 'px';
+        this.wrapperElement.appendChild(this.paletteElement);
         this.standardViewSettings = {
           padding: 5,
           indentWidth: 20,
@@ -4050,6 +4145,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
       Editor.prototype.resize = function() {
         var binding, _i, _len, _ref;
+        this.iceElement.style.left = "" + this.paletteElement.offsetWidth + "px";
         this.iceElement.style.height = "" + this.wrapperElement.offsetHeight + "px";
         this.iceElement.style.width = "" + this.wrapperElement.offsetWidth + "px";
         this.mainCanvas.height = this.iceElement.offsetHeight;
@@ -4072,9 +4168,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       };
 
       Editor.prototype.resizePalette = function() {
+        /*
+        @paletteWrapper.style.height = "#{@paletteElement.offsetHeight}px"
+        @paletteWrapper.style.width = "#{@paletteElement.offsetWidth}px"
+        */
+
         var binding, _i, _len, _ref;
-        this.paletteWrapper.style.height = "" + this.paletteElement.offsetHeight + "px";
-        this.paletteWrapper.style.width = "" + this.paletteElement.offsetWidth + "px";
         this.paletteCanvas.style.top = "" + this.paletteHeader.offsetHeight + "px";
         this.paletteCanvas.height = this.paletteWrapper.offsetHeight - this.paletteHeader.offsetHeight;
         this.paletteCanvas.width = this.paletteWrapper.offsetWidth;
@@ -5021,13 +5120,16 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             wrapAtRoot: false
           });
           if (((_ref = newParse.start.next) != null ? (_ref1 = _ref.container) != null ? _ref1.end : void 0 : void 0) === newParse.end.prev) {
-            newParse = newParse.start.next;
-            if (newParse.type === 'blockStart') {
-              parseParent.start.prev.append(newParse);
-              newParse.container.end.append(parseParent.end.next);
-              newParse.parent = parseParent.parent;
-              newParse.notifyChange();
-              this.addMicroUndoOperation(new ReparseOperation(parseParent, newParse.container));
+            if (focus === null) {
+              newParse = newParse.start.next;
+              if (newParse.type === 'blockStart') {
+                parseParent.start.prev.append(newParse);
+                newParse.container.end.append(parseParent.end.next);
+                newParse.parent = parseParent.parent;
+                newParse.notifyChange();
+                this.addMicroUndoOperation(new ReparseOperation(parseParent, newParse.container));
+                parseParent.parent = null;
+              }
             }
           } else {
             throw new Error('Socket is split.');
@@ -5120,6 +5222,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       mainPoint = this.trackerPointToMain(point);
       hitTestResult = this.hitTestTextInput(mainPoint, this.tree);
+      if (hitTestResult != null) {
+        if (hitTestResult !== this.textFocus) {
+          this.setTextInputFocus(null);
+          this.redrawMain();
+          hitTestResult = this.hitTestTextInput(mainPoint, this.tree);
+        }
+      }
       if (hitTestResult != null) {
         this.setTextInputFocus(hitTestResult);
         this.redrawMain();
@@ -5594,6 +5703,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               head.prev.append(newBlock);
               newBlock.container.end.append(head.container.end.next);
               newBlock.parent = head.container.parent;
+              head.container.parent = null;
               newBlock.notifyChange();
               head = newBlock.container.end;
             }
@@ -5604,100 +5714,107 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.redrawMain();
       return null;
     };
-    CreateIndentOperation = (function(_super) {
-      __extends(CreateIndentOperation, _super);
+    /*
+    # CreateIndent undo operation
+    class CreateIndentOperation extends UndoOperation
+      constructor: (pos, @depth) ->
+        @location = pos.getSerializedLocation()
+    
+      undo: (editor) ->
+        indent = editor.tree.getTokenAtLocation(@location).indent
+        indent.start.prev.append indent.end.next; indent.notifyChange()
+    
+      redo: (editor) ->
+        head = editor.tree.getTokenAtLocation(@location)
+    
+        newIndent = new model.Indent DEFAULT_INDENT_DEPTH
+        head.prev.append(newIndent.start)
+                 .append(new model.NewlineToken())
+                 .append(newIndent.end)
+                 .append(head)
+    
+    # DestroyIndent undo operation
+    class DestroyIndentOperation extends UndoOperation
+      constructor: (indent) ->
+        @location = indent.start.getSerializedLocation()
+        @indent = indent.clone()
+    
+      undo: (editor) ->
+        head = editor.tree.getTokenAtLocation(@location)
+    
+        newIndent = @indent.clone()
+        head.prev.append newIndent.start
+        newIndent.end.append head
+    
+        newIndent.notifyChange()
+    
+      redo: (editor) ->
+        indent = editor.tree.getTokenAtLocation(@location).indent
+        indent.start.prev.append indent.end.next; indent.notifyChange()
+    
+    # If we press tab while we are editing
+    # a handwritten block, we create and indent.
+    hook 'key.tab', 0, ->
+      if @socketFocus? and @socketFocus.handwritten
+        @addMicroUndoOperation 'CAPTURE_POINT'
+    
+        # Seek the block directly before this
+        head = @socketFocus.start
+        until head.type is 'blockEnd'
+          head = head.prev
+    
+        # If it ends in an indent,
+        # move this block to that indent.
+        if head.prev.type is 'indentEnd'
+          until head.type in ['blockEnd', 'indentStart']
+            head = head.prev
+    
+        # Otherwise, create an indent right before this.
+        else
+          @addMicroUndoOperation new CreateIndentOperation head, DEFAULT_INDENT_DEPTH
+    
+          newIndent = new model.Indent DEFAULT_INDENT_DEPTH
+          newIndent.start.append(new model.NewlineToken()).append newIndent.end
+          newIndent.spliceIn head.prev
+          newIndent.notifyChange()
+    
+          head = newIndent.start
+    
+        # Go through the motions of moving this block into
+        # the indent we have just found.
+        @addMicroUndoOperation new PickUpOperation @socketFocus.start.prev.container
+        @socketFocus.start.prev.container.spliceOut() #MUTATION
+    
+        @addMicroUndoOperation new DropOperation @socketFocus.start.prev.container, head
+        @socketFocus.start.prev.container.spliceIn head #MUTATION
+    
+        # Move the cursor up to where the block now is.
+        @moveCursorTo @socketFocus.start.prev.container.end
+    
+        @redrawMain()
+    
+    # If we press backspace at the start of an empty
+    # indent (an indent containing only whitespace),
+    # delete that indent.
+    hook 'key.backspace', 0, (state) ->
+      if state.capturedBackspace then return
+    
+      if  not @socketFocus? and
+          @cursor.prev?.prev?.type is 'indentStart' and
+          (indent = @cursor.prev.prev.indent).stringify().trim().length is 0
+    
+        @addMicroUndoOperation new DestroyIndentOperation indent
+        indent.notifyChange()
+    
+        indent.start.prev.append indent.end.next #MUTATION
+    
+        @moveCursorTo indent.end.next
+    
+        state.capturedBackspace = true
+    
+        @redrawMain()
+    */
 
-      function CreateIndentOperation(pos, depth) {
-        this.depth = depth;
-        this.location = pos.getSerializedLocation();
-      }
-
-      CreateIndentOperation.prototype.undo = function(editor) {
-        var indent;
-        indent = editor.tree.getTokenAtLocation(this.location).indent;
-        indent.start.prev.append(indent.end.next);
-        return indent.notifyChange();
-      };
-
-      CreateIndentOperation.prototype.redo = function(editor) {
-        var head, newIndent;
-        head = editor.tree.getTokenAtLocation(this.location);
-        newIndent = new model.Indent(DEFAULT_INDENT_DEPTH);
-        return head.prev.append(newIndent.start).append(new model.NewlineToken()).append(newIndent.end).append(head);
-      };
-
-      return CreateIndentOperation;
-
-    })(UndoOperation);
-    DestroyIndentOperation = (function(_super) {
-      __extends(DestroyIndentOperation, _super);
-
-      function DestroyIndentOperation(indent) {
-        this.location = indent.start.getSerializedLocation();
-        this.indent = indent.clone();
-      }
-
-      DestroyIndentOperation.prototype.undo = function(editor) {
-        var head, newIndent;
-        head = editor.tree.getTokenAtLocation(this.location);
-        newIndent = this.indent.clone();
-        head.prev.append(newIndent.start);
-        newIndent.end.append(head);
-        return newIndent.notifyChange();
-      };
-
-      DestroyIndentOperation.prototype.redo = function(editor) {
-        var indent;
-        indent = editor.tree.getTokenAtLocation(this.location).indent;
-        indent.start.prev.append(indent.end.next);
-        return indent.notifyChange();
-      };
-
-      return DestroyIndentOperation;
-
-    })(UndoOperation);
-    hook('key.tab', 0, function() {
-      var head, newIndent, _ref;
-      if ((this.socketFocus != null) && this.socketFocus.handwritten) {
-        this.addMicroUndoOperation('CAPTURE_POINT');
-        head = this.socketFocus.start;
-        while (head.type !== 'blockEnd') {
-          head = head.prev;
-        }
-        if (head.prev.type === 'indentEnd') {
-          while ((_ref = head.type) !== 'blockEnd' && _ref !== 'indentStart') {
-            head = head.prev;
-          }
-        } else {
-          this.addMicroUndoOperation(new CreateIndentOperation(head, DEFAULT_INDENT_DEPTH));
-          newIndent = new model.Indent(DEFAULT_INDENT_DEPTH);
-          newIndent.start.append(new model.NewlineToken()).append(newIndent.end);
-          newIndent.spliceIn(head.prev);
-          newIndent.notifyChange();
-          head = newIndent.start;
-        }
-        this.addMicroUndoOperation(new PickUpOperation(this.socketFocus.start.prev.container));
-        this.socketFocus.start.prev.container.spliceOut();
-        this.addMicroUndoOperation(new DropOperation(this.socketFocus.start.prev.container, head));
-        this.socketFocus.start.prev.container.spliceIn(head);
-        this.moveCursorTo(this.socketFocus.start.prev.container.end);
-        return this.redrawMain();
-      }
-    });
-    hook('key.backspace', 0, function(state) {
-      var indent, _ref, _ref1;
-      if (state.capturedBackspace) {
-        return;
-      }
-      if ((this.socketFocus == null) && ((_ref = this.cursor.prev) != null ? (_ref1 = _ref.prev) != null ? _ref1.type : void 0 : void 0) === 'indentStart' && (indent = this.cursor.prev.prev.indent).stringify().trim().length === 0) {
-        this.addMicroUndoOperation(new DestroyIndentOperation(indent));
-        indent.notifyChange();
-        indent.start.prev.append(indent.end.next);
-        this.moveCursorTo(indent.end.next);
-        state.capturedBackspace = true;
-        return this.redrawMain();
-      }
-    });
     hook('populate', 0, function() {
       var _this = this;
       this.aceElement = document.createElement('div');
@@ -5801,7 +5918,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })();
     Editor.prototype.performMeltAnimation = function(fadeTime, translateTime, cb) {
-      var aceScrollTop, bottom, div, element, i, line, lineHeight, textElement, textElements, top, translatingElements, translationVectors, treeView, _fn, _fn1, _i, _j, _len, _ref, _ref1,
+      var aceScrollTop, bottom, div, i, line, lineHeight, textElement, textElements, top, translatingElements, translationVectors, treeView, _fn, _fn1, _i, _j, _len, _ref,
         _this = this;
       if (fadeTime == null) {
         fadeTime = 500;
@@ -5874,17 +5991,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.mainScrollerStuffing.appendChild(div);
           _fn1(div, line);
         }
-        _ref1 = this.lineNumberTags;
-        for (line in _ref1) {
-          element = _ref1[line];
-          element.style.display = 'none';
-        }
+        this.lineNumberWrapper.style.display = 'none';
         this.paletteWrapper.style.transition = this.mainCanvas.style.transition = this.highlightCanvas.style.transition = "opacity " + fadeTime + "ms linear";
         this.paletteWrapper.style.opacity = this.mainCanvas.style.opacity = this.highlightCanvas.style.opacity = 0;
         setTimeout((function() {
+          _this.iceElement.style.transition = "left " + translateTime + "ms";
+          return _this.iceElement.style.left = '0px';
+        }), fadeTime);
+        setTimeout((function() {
           var _k, _len1;
-          _this.iceElement.style.top = "-9999px";
-          _this.iceElement.style.left = "-9999px";
+          _this.iceElement.style.transition = '';
+          _this.iceElement.style.top = '-9999px';
+          _this.iceElement.style.left = '-9999px';
+          _this.paletteWrapper.style.top = '-9999px';
+          _this.paletteWrapper.style.left = '-9999px';
           _this.aceElement.style.top = "0px";
           _this.aceElement.style.left = "0px";
           _this.currentlyAnimating = false;
@@ -5917,13 +6037,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       if (!this.currentlyUsingBlocks && !this.currentlyAnimating) {
         this.fireEvent('statechange', [true]);
-        setValueResult = this.setValue(this.aceEditor.getValue());
+        setValueResult = this.setValue_raw(this.aceEditor.getValue());
         if (!setValueResult.success) {
           return setValueResult;
         }
         if (this.aceEditor.getFirstVisibleRow() === 0) {
+          console.log('is 0');
           this.mainScroller.scrollTop = 0;
         } else {
+          console.log('scrolling to line', this.aceEditor.getFirstVisibleRow());
           this.mainScroller.scrollTop = this.view.getViewNodeFor(this.tree).bounds[this.aceEditor.getFirstVisibleRow()].y;
         }
         setTimeout((function() {
@@ -5936,6 +6058,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _this.currentlyAnimating = true;
           _this.aceElement.style.top = "-9999px";
           _this.aceElement.style.left = "-9999px";
+          _this.paletteWrapper.style.top = '0px';
+          _this.paletteWrapper.style.left = '0px';
           _this.iceElement.style.top = "0px";
           _this.iceElement.style.left = "0px";
           _this.paletteHeader.style.zIndex = 0;
@@ -5999,17 +6123,16 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           setTimeout((function() {
             return _this.paletteWrapper.style.opacity = _this.mainCanvas.style.opacity = _this.highlightCanvas.style.opacity = 1;
           }), translateTime);
+          _this.iceElement.style.transition = "left " + translateTime + "ms";
+          _this.iceElement.style.left = "" + _this.paletteWrapper.offsetWidth + "px";
           return setTimeout((function() {
-            var element, _l, _len2, _ref2;
+            var _l, _len2;
             _this.paletteWrapper.className.replace(/\ ice-fade-in/, '');
             _this.mainCanvas.className.replace(/\ ice-fade-in/, '');
             _this.highlightCanvas.className.replace(/\ ice-fade-in/, '');
+            _this.iceElement.style.transition = '';
             _this.currentlyAnimating = false;
-            _ref2 = _this.lineNumberTags;
-            for (line in _ref2) {
-              element = _ref2[line];
-              element.style.display = 'block';
-            }
+            _this.lineNumberWrapper.style.display = 'block';
             _this.redrawMain();
             _this.paletteHeader.style.zIndex = 257;
             for (_l = 0, _len2 = translatingElements.length; _l < _len2; _l++) {
@@ -6257,10 +6380,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.setTrimWhitespace = function(trimWhitespace) {
       return this.trimWhitespace = trimWhitespace;
     };
-    Editor.prototype.setValue = function(value) {
+    Editor.prototype.setValue_raw = function(value) {
       var newParse;
-      this.aceEditor.setValue(value);
-      this.aceEditor.resize(true);
       if (this.trimWhitespace) {
         value = value.trim();
       }
@@ -6278,6 +6399,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return {
         success: true
       };
+    };
+    Editor.prototype.setValue = function(value) {
+      var oldScrollTop;
+      oldScrollTop = this.aceEditor.session.getScrollTop();
+      this.aceEditor.setValue(value, -1);
+      this.aceEditor.resize(true);
+      this.aceEditor.session.setScrollTop(oldScrollTop);
+      return this.setValue_raw(value);
     };
     Editor.prototype.getValue = function() {
       if (this.currentlyUsingBlocks) {
@@ -6307,6 +6436,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return event in this.bindings && (this.bindings[event] != null);
     };
     Editor.prototype.setEditorState = function(useBlocks) {
+      var oldScrollTop;
       if (useBlocks) {
         this.setValue(this.aceEditor.getValue());
         this.iceElement.style.top = this.iceElement.style.left = '0px';
@@ -6316,7 +6446,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.resize();
         return this.redrawMain();
       } else {
+        oldScrollTop = this.aceEditor.session.getScrollTop();
         this.aceEditor.setValue(this.getValue(), -1);
+        this.aceEditor.resize(true);
+        this.aceEditor.session.setScrollTop(oldScrollTop);
         this.iceElement.style.top = this.iceElement.style.left = '-9999px';
         this.aceElement.style.top = this.aceElement.style.left = '0px';
         this.currentlyUsingBlocks = false;
@@ -6470,6 +6603,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('populate', 0, function() {
       this.gutter = document.createElement('div');
       this.gutter.className = 'ice-gutter';
+      this.lineNumberWrapper = document.createElement('div');
+      this.gutter.appendChild(this.lineNumberWrapper);
       this.gutterVersion = -1;
       this.lineNumberTags = {};
       return this.mainScrollerStuffing.appendChild(this.gutter);
@@ -6492,7 +6627,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       lineDiv.style.height = treeView.bounds[line].height + 'px';
       lineDiv.style.fontSize = this.fontSize + 'px';
       lineDiv.style.paddingTop = treeView.distanceToBase[line].above - this.view.opts.textHeight + 'px';
-      return this.gutter.appendChild(lineDiv);
+      return this.lineNumberWrapper.appendChild(lineDiv);
     };
     Editor.prototype.findLineNumberAtCoordinate = function(coord) {
       var end, pivot, start, treeView;
@@ -6540,28 +6675,107 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.gutter.style.height = "" + (Math.max(this.mainScroller.offsetHeight, treeView.totalBounds.height)) + "px";
       }
     });
+    /*
+    getFontHeight = (family, size) ->
+      testElement = document.createElement 'span'
+      testElement.innerHTML = 'Hg'
+    
+      testPartner = document.createElement 'div'
+      testPartner.style.display = 'inline-block'; testPartner.style.background = '#000'
+      testPartner.style.width = '1px'; testPartner.style.height = '1px'
+    
+      testWrapper = document.createElement 'div'
+      testWrapper.style.position = 'absolute'
+      testWrapper.style.left = testWrapper.style.top = '-9999px'
+      testWrapper.style.font = "#{size}px #{family}"
+    
+      testWrapper.appendChild testElement; testWrapper.appendChild testPartner
+    
+      document.body.appendChild testWrapper
+    
+      testPartner.style.verticalAlign = 'text-top'
+      offsetTop = testPartner.offsetTop - testElement.offsetTop
+    
+      testPartner.style.verticalAlign = 'text-bottom'
+      offsetBottom = testPartner.offsetTop - testElement.offsetTop
+    
+      console.log testWrapper
+    
+      #document.body.removeChild testWrapper
+    
+      return offsetBottom - offsetTop
+    */
+
+    fontMetricsCache = {};
+    fontMetrics = function(fontFamily, fontHeight) {
+      var baseline, canvas, capital, ctx, ex, fontStyle, gp, height, lf, metrics, result, textTopAndBottom, width;
+      fontStyle = "" + fontHeight + "px " + fontFamily;
+      result = fontMetricsCache[fontStyle];
+      textTopAndBottom = function(testText) {
+        var col, first, index, last, pixels, right, row, _i, _j;
+        ctx.fillStyle = 'black';
+        ctx.fillRect(0, 0, width, height);
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = 'white';
+        ctx.fillText(testText, 0, 0);
+        right = Math.ceil(ctx.measureText(testText).width);
+        pixels = ctx.getImageData(0, 0, width, height).data;
+        first = -1;
+        last = height;
+        for (row = _i = 0; 0 <= height ? _i < height : _i > height; row = 0 <= height ? ++_i : --_i) {
+          for (col = _j = 1; 1 <= right ? _j < right : _j > right; col = 1 <= right ? ++_j : --_j) {
+            index = (row * width + col) * 4;
+            if (pixels[index] !== 0) {
+              if (first < 0) {
+                first = row;
+              }
+              break;
+            }
+          }
+          if (first >= 0 && col >= right) {
+            last = row;
+            break;
+          }
+        }
+        return {
+          top: first,
+          bottom: last
+        };
+      };
+      if (!result) {
+        canvas = document.createElement('canvas');
+        ctx = canvas.getContext('2d');
+        ctx.font = fontStyle;
+        metrics = ctx.measureText('Hg');
+        if (canvas.height < fontHeight * 2 || canvas.width < metrics.width) {
+          canvas.width = Math.ceil(metrics.width);
+          canvas.height = fontHeight * 2;
+          ctx = canvas.getContext('2d');
+          ctx.font = fontStyle;
+        }
+        width = canvas.width;
+        height = canvas.height;
+        capital = textTopAndBottom('H');
+        ex = textTopAndBottom('x');
+        lf = textTopAndBottom('lf');
+        gp = textTopAndBottom('g');
+        baseline = capital.bottom;
+        result = {
+          ascent: lf.top,
+          capital: capital.top,
+          ex: ex.top,
+          baseline: capital.bottom,
+          descent: gp.bottom
+        };
+        fontMetricsCache[fontStyle] = result;
+      }
+      return result;
+    };
     getFontHeight = function(family, size) {
-      var offsetBottom, offsetTop, testElement, testPartner, testWrapper;
-      testElement = document.createElement('span');
-      testElement.innerHTML = 'Hg';
-      testPartner = document.createElement('div');
-      testPartner.style.display = 'inline-block';
-      testPartner.style.width = '1px';
-      testPartner.style.height = '0px';
-      testWrapper = document.createElement('div');
-      testWrapper.style.position = 'absolute';
-      testWrapper.style.left = testWrapper.style.top = '-9999px';
-      testWrapper.style.fontSize = size;
-      testWrapper.style.fontFamily = family;
-      testWrapper.appendChild(testElement);
-      testWrapper.appendChild(testPartner);
-      document.body.appendChild(testWrapper);
-      testPartner.style.verticalAlign = 'text-top';
-      offsetTop = testPartner.offsetTop - testElement.offsetTop;
-      testPartner.style.verticalAlign = 'text-bottom';
-      offsetBottom = testPartner.offsetTop - testElement.offsetTop;
-      document.body.removeChild(testWrapper);
-      return offsetBottom - offsetTop;
+      var metrics;
+      metrics = fontMetrics(family, size);
+      console.log(metrics);
+      return metrics.descent - metrics.ascent;
     };
     Editor.prototype.dumpNodeForDebug = function(hitTestResult, line) {
       console.log('Model node:');
