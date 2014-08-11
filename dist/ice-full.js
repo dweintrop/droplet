@@ -6445,7 +6445,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       var oldScrollTop;
       if (useBlocks) {
         this.setValue(this.aceEditor.getValue());
-        this.iceElement.style.top = this.iceElement.style.left = '0px';
+        this.iceElement.style.top = this.paletteWrapper.style.top = this.paletteWrapper.style.left = '0px';
+        this.iceElement.style.left = "" + this.paletteWrapper.offsetWidth + "px";
         this.aceElement.style.top = this.aceElement.style.left = '-9999px';
         this.currentlyUsingBlocks = true;
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 1;
@@ -6456,7 +6457,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.aceEditor.setValue(this.getValue(), -1);
         this.aceEditor.resize(true);
         this.aceEditor.session.setScrollTop(oldScrollTop);
-        this.iceElement.style.top = this.iceElement.style.left = '-9999px';
+        this.iceElement.style.top = this.iceElement.style.left = this.paletteWrapper.style.top = this.paletteWrapper.style.left = '-9999px';
         this.aceElement.style.top = this.aceElement.style.left = '0px';
         this.currentlyUsingBlocks = false;
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 0;
