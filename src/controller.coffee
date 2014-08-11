@@ -934,7 +934,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         unless point._ice_needs_shift and not @shiftKeyPressed
           distance = mainPoint.from(point)
           distance.y *= 2; distance = distance.magnitude()
-          if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE
+          if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE and
+             @view.getViewNodeFor(point._ice_node).highlightArea?
             best = point._ice_node
             min = distance
       
@@ -2966,7 +2967,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       @iceElement.style.top = @iceElement.style.left = '0px'
       @aceElement.style.top = @aceElement.style.left = '-9999px'
-      @gutter.style.left = @gutter.style.top = '0px'
       @currentlyUsingBlocks = true
 
       @mainCanvas.opacity = @paletteWrapper.opacity =
@@ -2979,7 +2979,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       @iceElement.style.top = @iceElement.style.left = '-9999px'
       @aceElement.style.top = @aceElement.style.left = '0px'
-      @gutter.style.left = @gutter.style.top = '-9999px'
       @currentlyUsingBlocks = false
 
       @mainCanvas.opacity = @paletteWrapper.opacity =
