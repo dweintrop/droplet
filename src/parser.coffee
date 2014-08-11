@@ -6,6 +6,8 @@
 
 define ['ice-model'], (model) ->
   exports = {}
+
+  YES = -> true
   
   # ## sortMarkup ##
   # Sort the markup by the order
@@ -106,7 +108,7 @@ define ['ice-model'], (model) ->
         # wrap it in a generic block automatically.
         if line.length > 0
           if (opts.wrapAtRoot and stack.length is 0) or stack[stack.length - 1]?.type is 'indent'
-            block = new model.Block 0, '#ffffff', false
+            block = new model.Block 0, 'blank', false
 
             head = head.append block.start
             head = head.append new model.TextToken line
@@ -274,7 +276,7 @@ define ['ice-model'], (model) ->
     else
       switch object.type
         when 'block'
-          block = new model.Block object.precedence, object.color, object.valueByDefault
+          block = new model.Block object.precedence, object.color, object.nodeType ? 'Unknown', object.socketLevel
           head = block.start
           for child in object.children
             subBlock = parseObj child
@@ -289,7 +291,16 @@ define ['ice-model'], (model) ->
           return block
 
         when 'socket'
-          return new model.Socket parseObj(object.contents), object.precedence
+          socket = new model.Socket object.precedence, false, object.accepts ? YES
+          contents = parseObj object.contents
+
+          if contents instanceof model.Container
+            contents.spliceIn socket.start
+          else
+            socket.start.append contents
+            contents.append socket.end
+
+          return socket
         
         when 'indent'
           block = new model.Indent (' ' for [1..object.depth]).join ''

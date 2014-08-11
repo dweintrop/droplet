@@ -95,8 +95,8 @@ require ['ice'], (ice) ->
       blocks: [
         ice.parseObj {
           type: 'block'
-          valueByDefault: true
-          color: '#26cf3c'
+          socketLevel: 4
+          color: 'value'
           children: [
             '('
             {
@@ -104,18 +104,6 @@ require ['ice'], (ice) ->
               precedence: 0
               contents: 'arg'
             }
-            #{
-            #  type: 'mutationButton'
-            #  expand: [
-            #    ', '
-            #    {
-            #      type: 'socket'
-            #      precedence: 0
-            #      contents: 'arg'
-            #    }
-            #  0
-            #  ]
-            #}
             ') ->'
             {
               type: 'indent'
@@ -124,8 +112,8 @@ require ['ice'], (ice) ->
                 '\n'
                 {
                   type: 'block'
-                  valueByDefault: false
-                  color: '#dc322f'
+                  socketLevel: 1
+                  color: 'return'
                   children: [
                     'return '
                     {
@@ -142,8 +130,8 @@ require ['ice'], (ice) ->
         ice.parse('return arg').start.next.container
         ice.parseObj {
           type: 'block'
-          valueByDefault: false
-          color: '#268bd2'
+          socketLevel: 1
+          color: 'command'
           precedence: 32
           children: [
             {
@@ -157,18 +145,6 @@ require ['ice'], (ice) ->
               precedence: 0
               contents: 'arg'
             }
-            #{
-            #  type: 'mutationButton'
-            #  expand: [
-            #    ', '
-            #    {
-            #      type: 'socket'
-            #      precedence: 0
-            #      contents: 'arg'
-            #    }
-            #    0
-            #  ]
-            #}
             ')'
           ]
         }
@@ -180,8 +156,8 @@ require ['ice'], (ice) ->
       blocks: [
         ice.parseObj {
           type: 'block'
-          valueByDefault: true
-          color: '#26cf3c'
+          socketLevel: 4
+          color: 'value'
           precedence: 32
           children: [
             '['
@@ -190,18 +166,6 @@ require ['ice'], (ice) ->
               precedence: 0
               contents: 'el'
             }
-            #{
-            #  type: 'mutationButton'
-            #  expand: [
-            #    ', '
-            #    {
-            #      type: 'socket'
-            #      precedence: 0
-            #      contents: 'el'
-            #    }
-            #    0
-            #  ]
-            #}
             ']'
           ]
         }
@@ -210,11 +174,11 @@ require ['ice'], (ice) ->
         ice.parse('{}').start.next.container
         ice.parseObj {
           type: 'block'
-          valueByDefault: true
+          socketLevel: 4
           precedence: 32
-          color: '#26cf3c'
+          color: 'value'
           children: [
-            '{   '
+            '{'
             {
               type: 'indent'
               depth: 2
@@ -227,7 +191,7 @@ require ['ice'], (ice) ->
         }
         ice.parseObj {
           type: 'block'
-          color: '#268bd2'
+          color: 'command'
           children: [
             {
               type: 'socket'

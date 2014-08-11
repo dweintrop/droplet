@@ -34,6 +34,16 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
     bevelClip: 3
     shadowBlur: 5
     ctx: document.createElement('canvas').getContext('2d')
+    colors:
+      return: '#f2a6a6'
+      control: '#efcf8f'
+      value: '#8cec79'
+      command: '#8fbfef'
+
+      yellow: '#ecec79'
+      cyan: '#79ecd9'
+      violet: '#bfa6f2'
+      magenta: '#f2a6e5'
 
   YES = -> yes
   NO = -> no
@@ -163,9 +173,6 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         # few or no changes to the Model).
         @computedVersion = -1
 
-        # TODO: remove
-        @padding = @view.opts.padding
-
       serialize: (line) ->
         result = []
         for prop in [
@@ -231,8 +238,8 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
             bottom: @view.opts.indentTongueHeight
 
             firstLeft: 0
-            midLeft: @view.opts.indentWidth + @view.opts.padding
-            lastLeft: @view.opts.indentWidth + @view.opts.padding
+            midLeft: @view.opts.indentWidth
+            lastLeft: @view.opts.indentWidth
 
             firstRight: 0
             midRight: 0
@@ -848,6 +855,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         # have to be extended to a minimum width.
         # Record the lines that need to be extended here.
         linesToExtend = []
+        preIndentLines = []
         
         # Recurse on our children, updating
         # our dimensions as we go to contain them.
@@ -883,6 +891,10 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
                 desiredLine < @lineLength - 1
               bottomMargin = 0
               linesToExtend.push desiredLine + 1
+            else if childObject.child.type is 'indent' and
+                line is 0
+              preIndentLines.push desiredLine
+              bottomMargin = margins.bottom
             else
               bottomMargin = margins.bottom
 
@@ -908,6 +920,10 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
         # be as long as necessary
         for line in linesToExtend
           @minDimensions[line].width = Math.max @minDimensions[line].width, @minDimensions[line - 1].width
+
+        for line in preIndentLines
+          @minDimensions[line].width = Math.max(@minDimensions[line].width,
+            @view.opts.indentWidth + @view.opts.tabWidth + @view.opts.tabOffset + @view.opts.bevelClip)
 
         return null
 
@@ -1357,7 +1373,6 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
 
               @addTab right, new draw.Point(@bounds[line + 1].x +
                 @view.opts.indentWidth +
-                @padding +
                 @view.opts.tabOffset, @bounds[line + 1].y), true
             else
               right.push new draw.Point multilineBounds.x, glueTop
@@ -1484,7 +1499,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
 
       computeOwnPath: ->
         super
-        @path.style.fillColor = @model.color
+        @path.style.fillColor = @view.opts.colors[@model.color] ? '#ffffff'
         @path.style.strokeColor = '#888'
 
         @path.bevel = true
@@ -1628,7 +1643,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
 
     # # IndentViewNode
     class IndentViewNode extends ContainerViewNode
-      constructor: -> super; @padding = 0
+      constructor: -> super
 
       # ## computeOwnPath
       # An Indent should also have no drawn
@@ -1710,7 +1725,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
     # Represents a Segment. Draws little, but
     # recurses.
     class SegmentViewNode extends ContainerViewNode
-      constructor: -> super; @padding = 0
+      constructor: -> super
 
       # ## computeOwnPath
       #
