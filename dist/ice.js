@@ -3997,6 +3997,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.iceElement.className = 'ice-wrapper-div';
         this.iceElement.tabIndex = 0;
         this.wrapperElement.appendChild(this.iceElement);
+        this.wrapperElement.style.backgroundColor = '#FFF';
         this.mainCanvas = document.createElement('canvas');
         this.mainCanvas.className = 'ice-main-canvas';
         this.mainCtx = this.mainCanvas.getContext('2d');
@@ -4111,7 +4112,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         var binding, _i, _len, _ref;
         this.iceElement.style.left = "" + this.paletteElement.offsetWidth + "px";
         this.iceElement.style.height = "" + this.wrapperElement.offsetHeight + "px";
-        this.iceElement.style.width = "" + this.wrapperElement.offsetWidth + "px";
+        this.iceElement.style.width = "" + (this.wrapperElement.offsetWidth - this.paletteWrapper.offsetWidth) + "px";
         this.mainCanvas.height = this.iceElement.offsetHeight;
         this.mainCanvas.width = this.iceElement.offsetWidth - this.gutter.offsetWidth;
         this.mainCanvas.style.height = "" + this.mainCanvas.height + "px";
@@ -4767,6 +4768,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         palettePoint = this.trackerPointToPalette(point);
         if ((0 < (_ref = palettePoint.x - this.scrollOffsets.palette.x) && _ref < this.paletteCanvas.width) && (0 < (_ref1 = palettePoint.y - this.scrollOffsets.palette.y) && _ref1 < this.paletteCanvas.height) || !((-this.gutter.offsetWidth < (_ref2 = renderPoint.x - this.scrollOffsets.main.x) && _ref2 < this.mainCanvas.width) && (0 < (_ref3 = renderPoint.y - this.scrollOffsets.main.y) && _ref3 < this.mainCanvas.height))) {
+          if (this.draggingBlock === this.lassoSegment) {
+            this.lassoSegment = null;
+          }
           this.draggingBlock = null;
           this.draggingOffset = null;
           this.lastHighlight = null;
@@ -4998,8 +5002,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return _results;
     });
     hook('resize', 0, function() {
-      this.aceElement.style.width = "" + this.iceElement.offsetWidth + "px";
-      return this.aceElement.style.height = "" + this.iceElement.offsetHeight + "px";
+      this.aceElement.style.width = "" + this.wrapperElement.offsetWidth + "px";
+      return this.aceElement.style.height = "" + this.wrapperElement.offsetHeight + "px";
     });
     last_ = function(array) {
       return array[array.length - 1];
@@ -5923,7 +5927,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           div.innerText = textElement.model.value;
           div.style.font = this.fontSize + 'px ' + this.fontFamily;
           div.style.left = "" + (textElement.bounds[0].x - this.scrollOffsets.main.x) + "px";
-          div.style.top = "" + (textElement.bounds[0].y - this.scrollOffsets.main.y) + "px";
+          div.style.top = "" + (textElement.bounds[0].y - this.scrollOffsets.main.y - this.fontAscent) + "px";
           div.className = 'ice-transitioning-element';
           div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms";
           translatingElements.push(div);
@@ -6032,7 +6036,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _fn = function(div, textElement) {
             return setTimeout((function() {
               div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x) + "px";
-              return div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y) + "px";
+              return div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y - _this.fontAscent) + "px";
             }), 0);
           };
           for (i = _i = 0, _len = textElements.length; _i < _len; i = ++_i) {
@@ -6183,6 +6187,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     });
     hook('populate', 0, function() {
       this.fontSize = 15;
+      this.fontAscent = 1;
       return this.fontFamily = 'Courier New';
     });
     Editor.prototype.setFontSize_raw = function(fontSize) {
@@ -6190,9 +6195,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.fontSize = fontSize;
         this.paletteHeader.style.fontSize = "" + fontSize + "px";
         this.gutter.style.fontSize = "" + fontSize + "px";
-        this.view.opts.textHeight = getFontHeight(this.fontFamily, this.fontSize);
+        this.view.opts.textHeight = this.dragView.opts.textHeight = getFontHeight(this.fontFamily, this.fontSize);
+        this.fontAscent = fontMetrics(this.fontFamily, this.fontSize).ascent;
         this.view.clearCache();
-        this.dragView.opts.textHeight = fontSize;
         this.dragView.clearCache();
         this.gutter.style.width = this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
         this.redrawMain();
@@ -6203,6 +6208,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       draw._setGlobalFontFamily(fontFamily);
       this.fontFamily = fontFamily;
       this.view.opts.textHeight = getFontHeight(this.fontFamily, this.fontSize);
+      this.fontAscent = fontMetrics(this.fontFamily, this.fontSize).ascent;
       this.view.clearCache();
       this.dragView.clearCache();
       this.gutter.style.fontFamily = fontFamily;
