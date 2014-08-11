@@ -4510,7 +4510,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             distance = mainPoint.from(point);
             distance.y *= 2;
             distance = distance.magnitude();
-            if (distance < min && mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE) {
+            if (distance < min && mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE && (_this.view.getViewNodeFor(point._ice_node).highlightArea != null)) {
               best = point._ice_node;
               return min = distance;
             }
@@ -6275,7 +6275,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.setValue(this.aceEditor.getValue());
         this.iceElement.style.top = this.iceElement.style.left = '0px';
         this.aceElement.style.top = this.aceElement.style.left = '-9999px';
-        this.gutter.style.left = this.gutter.style.top = '0px';
         this.currentlyUsingBlocks = true;
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 1;
         this.resize();
@@ -6284,7 +6283,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.aceEditor.setValue(this.getValue(), -1);
         this.iceElement.style.top = this.iceElement.style.left = '-9999px';
         this.aceElement.style.top = this.aceElement.style.left = '0px';
-        this.gutter.style.left = this.gutter.style.top = '-9999px';
         this.currentlyUsingBlocks = false;
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 0;
         return this.resize();
