@@ -3395,8 +3395,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     MOSTLY_BLOCK = 2;
     MOSTLY_VALUE = 3;
     VALUE_ONLY = 4;
-    BLOCK_FUNCTIONS = ['fd', 'bk', 'rt', 'lt', 'dot', 'jumpto', 'moveto', 'pen'];
-    VALUE_FUNCTIONS = ['sin', 'cos', 'touches', 'pressed'];
+    BLOCK_FUNCTIONS = ['fd', 'bk', 'rt', 'lt', 'slide', 'movexy', 'moveto', 'jump', 'jumpto', 'turnto', 'home', 'pen', 'fill', 'dot', 'box', 'mirror', 'twist', 'scale', 'pause', 'st', 'ht', 'pu', 'pd', 'pe', 'pf', 'play', 'tone', 'silence', 'speed', 'wear', 'drawon', 'label', 'reload'];
+    VALUE_FUNCTIONS = ['abs', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'ceil', 'floor', 'round', 'exp', 'ln', 'log10', 'pow', 'sqrt', 'max', 'min', 'random', 'pagexy', 'getxy', 'direction', 'distance', 'shown', 'hidden', 'inside', 'touches', 'within', 'notwithin', 'nearest', 'pressed', 'canvas'];
     OPERATOR_PRECEDENCES = {
       '||': 1,
       '&&': 2,
