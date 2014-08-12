@@ -4910,15 +4910,18 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.paletteHeader = document.createElement('div');
       this.paletteHeader.className = 'ice-palette-header';
       this.paletteWrapper.appendChild(this.paletteHeader);
-      paletteHeaderRow = document.createElement('div');
-      paletteHeaderRow.className = 'ice-palette-header-row';
-      this.paletteHeader.appendChild(paletteHeaderRow);
+      paletteHeaderRow = null;
       _ref = this.paletteGroups;
       _results = [];
       for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
         paletteGroup = _ref[i];
         _results.push((function(paletteGroup) {
           var block, clickHandler, paletteGroupHeader;
+          if (i % 2 === 0) {
+            paletteHeaderRow = document.createElement('div');
+            paletteHeaderRow.className = 'ice-palette-header-row';
+            _this.paletteHeader.appendChild(paletteHeaderRow);
+          }
           paletteGroup.blocks = (function() {
             var _j, _len1, _ref1, _results1;
             _ref1 = paletteGroup.blocks;
@@ -4936,11 +4939,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             paletteGroupHeader.className += ' ' + paletteGroup.color;
           }
           paletteHeaderRow.appendChild(paletteGroupHeader);
-          if (i % 2 === 1) {
-            paletteHeaderRow = document.createElement('div');
-            paletteHeaderRow.className = 'ice-palette-header-row';
-            _this.paletteHeader.appendChild(paletteHeaderRow);
-          }
           clickHandler = function() {
             _this.currentPaletteGroup = paletteGroup.name;
             _this.currentPaletteBlocks = paletteGroup.blocks;
