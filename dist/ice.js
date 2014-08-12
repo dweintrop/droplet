@@ -1254,6 +1254,14 @@
         return "<socket precedence=\"" + this.container.precedence + "\">";
       };
 
+      SocketStartToken.prototype.stringify = function() {
+        if (this.next === this.container.end || this.next.type === 'text' && this.next.value === '') {
+          return '``';
+        } else {
+          return '';
+        }
+      };
+
       return SocketStartToken;
 
     })(StartToken);
@@ -1325,7 +1333,11 @@
 
       IndentEndToken.prototype.stringify = function(state) {
         state.indent = state.indent.slice(0, -this.container.depth);
-        return '';
+        if (this.previousVisibleToken().previousVisibleToken() === this.container.start) {
+          return '``';
+        } else {
+          return '';
+        }
       };
 
       IndentEndToken.prototype.serialize = function() {
