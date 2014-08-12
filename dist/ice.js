@@ -6001,7 +6001,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div = translatingElements[_k];
             div.parentNode.removeChild(div);
           }
-          _this.resize();
           if (cb != null) {
             return cb();
           }
@@ -6129,6 +6128,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               div = translatingElements[_l];
               div.parentNode.removeChild(div);
             }
+            _this.resize();
             if (cb != null) {
               return cb();
             }
