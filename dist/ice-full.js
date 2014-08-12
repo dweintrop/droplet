@@ -3057,7 +3057,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
 */;
 (function() {
   define('ice-parser',['ice-model'], function(model) {
-    var Parser, YES, applyMarkup, exports, parseObj, regenerateMarkup, sortMarkup;
+    var Parser, YES, applyMarkup, exports, parseObj, regenerateMarkup, removeFlaggedBlocks, sortMarkup;
     exports = {};
     YES = function() {
       return true;
@@ -3215,6 +3215,21 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
       head = head.append(document.end);
       return document;
     };
+    removeFlaggedBlocks = function(segment) {
+      var container, head, _results;
+      head = segment.start;
+      _results = [];
+      while (head !== segment.end) {
+        if (head instanceof model.StartToken && head.container.flagToRemove) {
+          container = head.container;
+          head = container.end.next;
+          _results.push(container.spliceOut());
+        } else {
+          _results.push(head = head.next);
+        }
+      }
+      return _results;
+    };
     regenerateMarkup = function(markup) {
       var mark, tags, _i, _len;
       tags = [];
@@ -3245,6 +3260,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
         markup = regenerateMarkup(this.parseFn(text));
         sortMarkup(markup);
         segment = applyMarkup(text, markup, opts);
+        removeFlaggedBlocks(segment);
         segment.correctParentTree();
         return segment;
       };
@@ -3562,7 +3578,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         var block;
         block = new model.Block(precedence, color, node.nodeType(), socketLevel);
         this.addMarkup(block, node, wrappingParen, depth);
-        return block.currentlyParenWrapped = wrappingParen != null;
+        block.currentlyParenWrapped = wrappingParen != null;
+        return block;
       };
 
       CoffeeScriptTranspiler.prototype.addSocket = function(node, depth, precedence, accepts) {
@@ -3571,15 +3588,18 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           accepts = YES;
         }
         socket = new model.Socket(precedence, false, accepts);
-        return this.addMarkup(socket, node, null, depth);
+        this.addMarkup(socket, node, null, depth);
+        return socket;
       };
 
       CoffeeScriptTranspiler.prototype.addSocketAndMark = function(node, depth, precedence, indentDepth, accepts) {
+        var socket;
         if (accepts == null) {
           accepts = YES;
         }
-        this.addSocket(node, depth, precedence, accepts);
-        return this.mark(node, depth + 1, precedence, null, indentDepth);
+        socket = this.addSocket(node, depth, precedence, accepts);
+        this.mark(node, depth + 1, precedence, null, indentDepth);
+        return socket;
       };
 
       CoffeeScriptTranspiler.prototype.wrapSemicolonLine = function(firstBounds, lastBounds, expressions, depth) {
@@ -3626,7 +3646,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       };
 
       CoffeeScriptTranspiler.prototype.mark = function(node, depth, precedence, wrappingParen, indentDepth) {
-        var arg, bounds, childName, condition, expr, firstBounds, indent, infix, line, lines, object, param, property, secondBounds, shouldBeOneLine, switchCase, textLine, trueIndentDepth, _i, _j, _k, _l, _len, _len1, _len10, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _results, _results1, _results2, _results3, _results4, _s, _t;
+        var arg, bounds, childName, condition, expr, fakeBlock, firstBounds, indent, infix, line, lines, object, param, property, secondBounds, shouldBeOneLine, switchCase, textLine, trueIndentDepth, _i, _j, _k, _l, _len, _len1, _len10, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref18, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _results, _results1, _results2, _results3, _results4, _s, _t;
         switch (node.nodeType()) {
           case 'Block':
             if (node.expressions.length === 0) {
@@ -3721,6 +3741,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 }
               }
               return _results1;
+            } else if (node.base.nodeType() === 'Literal' && node.base.value === '') {
+              fakeBlock = this.addBlock(node.base, depth, 0, 'value', wrappingParen, ANY_DROP);
+              return fakeBlock.flagToRemove = true;
             } else {
               return this.mark(node.base, depth + 1, precedence, wrappingParen, indentDepth);
             }
@@ -5019,7 +5042,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.hiddenInput = document.createElement('textarea');
       this.hiddenInput.className = 'ice-hidden-input';
       this.iceElement.appendChild(this.hiddenInput);
-      this.socketFocus = null;
+      this.textFocus = null;
       this.textFocus = null;
       this.textInputAnchor = null;
       this.textInputSelecting = false;
@@ -5114,12 +5137,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if ((focus != null ? focus.id : void 0) in this.extraMarks) {
         delete this.extraMarks[focus != null ? focus.id : void 0];
       }
-      if ((this.socketFocus != null) && this.socketFocus !== focus) {
+      if ((this.textFocus != null) && this.textFocus !== focus) {
         this.addMicroUndoOperation('CAPTURE_POINT');
-        this.addMicroUndoOperation(new TextChangeOperation(this.socketFocus, this.oldFocusValue));
+        this.addMicroUndoOperation(new TextChangeOperation(this.textFocus, this.oldFocusValue));
         this.oldFocusValue = null;
         try {
-          parseParent = this.socketFocus.parent;
+          parseParent = this.textFocus.parent;
           newParse = coffee.parse(parseParent.stringify(), {
             wrapAtRoot: false
           });
@@ -5139,8 +5162,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             throw new Error('Socket is split.');
           }
         } catch (_error) {
-          this.extraMarks[this.socketFocus.id] = {
-            model: this.socketFocus,
+          this.extraMarks[this.textFocus.id] = {
+            model: this.textFocus,
             style: {
               color: '#F00'
             }
@@ -5148,7 +5171,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.redrawMain();
         }
       }
-      this.socketFocus = focus;
       if (focus == null) {
         this.textFocus = null;
         this.hiddenInput.blur();
@@ -5466,11 +5488,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (destination == null) {
         return;
       }
-      head = destination;
-      while (head !== null && head !== this.tree.end) {
-        head = head.next;
-      }
-      if (head == null) {
+      if (!this.inTree(destination)) {
         return;
       }
       this.cursor.remove();
@@ -5561,8 +5579,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('key.tab', 0, function() {
       var head;
       if (this.shiftKeyPressed) {
-        if (this.socketFocus != null) {
-          head = this.socketFocus.start;
+        if (this.textFocus != null) {
+          head = this.textFocus.start;
         } else {
           head = this.cursor;
         }
@@ -5574,8 +5592,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         return false;
       } else {
-        if (this.socketFocus != null) {
-          head = this.socketFocus.end;
+        if (this.textFocus != null) {
+          head = this.textFocus.end;
         } else {
           head = this.cursor;
         }
@@ -5606,7 +5624,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (state.capturedBackspace) {
         return;
       }
-      if ((this.textFocus == null) || (this.hiddenInput.value.length === 0 && this.socketFocus.handwritten)) {
+      if ((this.textFocus == null) || (this.hiddenInput.value.length === 0 && this.textFocus.handwritten)) {
         this.deleteAtCursor();
         state.capturedBackspace = true;
         return false;
@@ -5759,11 +5777,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     # If we press tab while we are editing
     # a handwritten block, we create and indent.
     hook 'key.tab', 0, ->
-      if @socketFocus? and @socketFocus.handwritten
+      if @textFocus? and @textFocus.handwritten
         @addMicroUndoOperation 'CAPTURE_POINT'
     
         # Seek the block directly before this
-        head = @socketFocus.start
+        head = @textFocus.start
         until head.type is 'blockEnd'
           head = head.prev
     
@@ -5786,14 +5804,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     
         # Go through the motions of moving this block into
         # the indent we have just found.
-        @addMicroUndoOperation new PickUpOperation @socketFocus.start.prev.container
-        @socketFocus.start.prev.container.spliceOut() #MUTATION
+        @addMicroUndoOperation new PickUpOperation @textFocus.start.prev.container
+        @textFocus.start.prev.container.spliceOut() #MUTATION
     
-        @addMicroUndoOperation new DropOperation @socketFocus.start.prev.container, head
-        @socketFocus.start.prev.container.spliceIn head #MUTATION
+        @addMicroUndoOperation new DropOperation @textFocus.start.prev.container, head
+        @textFocus.start.prev.container.spliceIn head #MUTATION
     
         # Move the cursor up to where the block now is.
-        @moveCursorTo @socketFocus.start.prev.container.end
+        @moveCursorTo @textFocus.start.prev.container.end
     
         @redrawMain()
     
@@ -5803,7 +5821,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook 'key.backspace', 0, (state) ->
       if state.capturedBackspace then return
     
-      if  not @socketFocus? and
+      if  not @textFocus? and
           @cursor.prev?.prev?.type is 'indentStart' and
           (indent = @cursor.prev.prev.indent).stringify().trim().length is 0
     
@@ -5942,6 +5960,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.redrawMain({
           noText: true
         });
+        this.textFocus = this.lassoAnchor = null;
         this.currentlyUsingBlocks = false;
         this.currentlyAnimating = true;
         this.paletteHeader.style.zIndex = 0;
@@ -6046,10 +6065,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           return setValueResult;
         }
         if (this.aceEditor.getFirstVisibleRow() === 0) {
-          console.log('is 0');
           this.mainScroller.scrollTop = 0;
         } else {
-          console.log('scrolling to line', this.aceEditor.getFirstVisibleRow());
           this.mainScroller.scrollTop = this.view.getViewNodeFor(this.tree).bounds[this.aceEditor.getFirstVisibleRow()].y;
         }
         setTimeout((function() {
@@ -6122,18 +6139,22 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           for (_k = 0, _len1 = _ref1.length; _k < _len1; _k++) {
             el = _ref1[_k];
             el.style.opacity = 0;
-            el.style.transform = "opacity " + fadeTime + "ms linear";
           }
           setTimeout((function() {
-            return _this.paletteWrapper.style.opacity = _this.mainCanvas.style.opacity = _this.highlightCanvas.style.opacity = 1;
+            var _l, _len2, _ref2, _results;
+            _ref2 = [_this.paletteWrapper, _this.mainCanvas, _this.highlightCanvas];
+            _results = [];
+            for (_l = 0, _len2 = _ref2.length; _l < _len2; _l++) {
+              el = _ref2[_l];
+              el.style.transition = "opacity " + fadeTime + "ms linear";
+              _results.push(el.style.opacity = 1);
+            }
+            return _results;
           }), translateTime);
           _this.iceElement.style.transition = "left " + translateTime + "ms";
           _this.iceElement.style.left = "" + _this.paletteWrapper.offsetWidth + "px";
           return setTimeout((function() {
             var _l, _len2;
-            _this.paletteWrapper.className.replace(/\ ice-fade-in/, '');
-            _this.mainCanvas.className.replace(/\ ice-fade-in/, '');
-            _this.highlightCanvas.className.replace(/\ ice-fade-in/, '');
             _this.iceElement.style.transition = '';
             _this.currentlyAnimating = false;
             _this.lineNumberWrapper.style.display = 'block';
@@ -6708,8 +6729,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       testPartner.style.verticalAlign = 'text-bottom'
       offsetBottom = testPartner.offsetTop - testElement.offsetTop
     
-      console.log testWrapper
-    
       #document.body.removeChild testWrapper
     
       return offsetBottom - offsetTop
@@ -6783,7 +6802,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     getFontHeight = function(family, size) {
       var metrics;
       metrics = fontMetrics(family, size);
-      console.log(metrics);
       return metrics.descent - metrics.ascent;
     };
     Editor.prototype.dumpNodeForDebug = function(hitTestResult, line) {
