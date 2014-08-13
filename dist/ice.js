@@ -640,7 +640,7 @@
       }
 
       Draw.prototype.refreshFontCapital = function() {
-        return this.fontAscent = helper.fontMetrics(self.fontFamily, self.fontSize).prettytop;
+        return this.fontAscent = helper.fontMetrics(this.fontFamily, this.fontSize).prettytop;
       };
 
       Draw.prototype.setCtx = function(ctx) {
@@ -4302,11 +4302,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.topNubbyPath.style.fillColor = '#EBEBEB';
     });
     Editor.prototype.redrawMain = function(opts) {
-      var binding, layoutResult, _i, _len, _ref, _ref1, _ref2, _results;
+      var binding, layoutResult, oldScroll, _i, _len, _ref, _ref1, _ref2, _results;
       if (opts == null) {
         opts = {};
       }
       if (!this.currentlyAnimating) {
+        if (this.changeEventVersion !== this.tree.version) {
+          this.suppressChangeEvent = true;
+          oldScroll = this.aceEditor.session.getScrollTop();
+          this.aceEditor.setValue(this.getValue(), -1);
+          this.suppressChangeEvent = false;
+          this.aceEditor.session.setScrollTop(oldScroll);
+          this.fireEvent('change', []);
+          this.changeEventVersion = this.tree.version;
+        }
         this.draw.setGlobalFontSize(this.fontSize);
         this.draw.setCtx(this.mainCtx);
         this.clearMain(opts);
@@ -4474,7 +4483,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.iceElement.focus();
     });
     hook('populate', 0, function() {
-      return this.undoStack = [];
+      this.undoStack = [];
+      return this.changeEventVersion = 0;
     });
     UndoOperation = (function() {
       function UndoOperation() {}
@@ -4491,7 +4501,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })();
     Editor.prototype.addMicroUndoOperation = function(operation) {
-      var head, next, oldScroll;
+      var head, next;
       this.undoStack.push(operation);
       head = this.tree.end.previousVisibleToken();
       while ((head != null ? head.type : void 0) === 'newline') {
@@ -4499,12 +4509,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         head.remove();
         head = next;
       }
-      this.suppressChangeEvent = true;
-      oldScroll = this.aceEditor.session.getScrollTop();
-      this.aceEditor.setValue(this.getValue(), -1);
-      this.suppressChangeEvent = false;
-      this.aceEditor.session.setScrollTop(oldScroll);
-      return this.fireEvent('change', [operation]);
+      return this.fireEvent('beforechange', [operation]);
     };
     Editor.prototype.undo = function() {
       var operation;
@@ -4853,8 +4858,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     ToFloatingOperation = (function(_super) {
       __extends(ToFloatingOperation, _super);
 
-      function ToFloatingOperation(block, position) {
-        this.position = new this.draw.Point(position.x, position.y);
+      function ToFloatingOperation(block, position, editor) {
+        this.position = new editor.draw.Point(position.x, position.y);
         ToFloatingOperation.__super__.constructor.call(this, block, null);
       }
 
@@ -4922,7 +4927,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         } else if (renderPoint.x - this.scrollOffsets.main.x < 0) {
           renderPoint.x = this.scrollOffsets.main.x;
         }
-        this.addMicroUndoOperation(new ToFloatingOperation(this.draggingBlock, renderPoint));
+        this.addMicroUndoOperation(new ToFloatingOperation(this.draggingBlock, renderPoint, this));
         this.floatingBlocks.push(new FloatingBlockRecord(this.draggingBlock, renderPoint));
         this.draggingBlock = null;
         this.draggingOffset = null;
