@@ -4735,7 +4735,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     });
     hook('mousemove', 0, function(point, event, state) {
-      var best, mainPoint, min, position, testPoints,
+      var best, head, mainPoint, min, position, testPoints, _ref, _ref1, _ref2,
         _this = this;
       if (this.draggingBlock != null) {
         position = new this.draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
@@ -4744,29 +4744,38 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         mainPoint = this.trackerPointToMain(position);
         best = null;
         min = Infinity;
-        testPoints = this.dropPointQuadTree.retrieve({
-          x: mainPoint.x - MAX_DROP_DISTANCE,
-          y: mainPoint.y - MAX_DROP_DISTANCE,
-          w: MAX_DROP_DISTANCE * 2,
-          h: MAX_DROP_DISTANCE * 2
-        }, function(point) {
-          var distance;
-          if (!(point._ice_needs_shift && !_this.shiftKeyPressed)) {
-            distance = mainPoint.from(point);
-            distance.y *= 2;
-            distance = distance.magnitude();
-            if (distance < min && mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE && (_this.view.getViewNodeFor(point._ice_node).highlightArea != null)) {
-              best = point._ice_node;
-              return min = distance;
+        head = this.tree.start.next;
+        while (((_ref = head.type) === 'newline' || _ref === 'cursor') || head.type === 'text' && head.value === '') {
+          head = head.next;
+        }
+        if (head === this.tree.end && (this.mainCanvas.width + this.scrollOffsets.main.x > (_ref1 = mainPoint.x) && _ref1 > this.scrollOffsets.main.x) && (this.mainCanvas.height + this.scrollOffsets.main.y > (_ref2 = mainPoint.y) && _ref2 > this.scrollOffsets.main.y)) {
+          this.view.getViewNodeFor(this.tree).highlightArea.draw(this.highlightCtx);
+          return this.lastHighlight = this.tree;
+        } else {
+          testPoints = this.dropPointQuadTree.retrieve({
+            x: mainPoint.x - MAX_DROP_DISTANCE,
+            y: mainPoint.y - MAX_DROP_DISTANCE,
+            w: MAX_DROP_DISTANCE * 2,
+            h: MAX_DROP_DISTANCE * 2
+          }, function(point) {
+            var distance;
+            if (!(point._ice_needs_shift && !_this.shiftKeyPressed)) {
+              distance = mainPoint.from(point);
+              distance.y *= 2;
+              distance = distance.magnitude();
+              if (distance < min && mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE && (_this.view.getViewNodeFor(point._ice_node).highlightArea != null)) {
+                best = point._ice_node;
+                return min = distance;
+              }
             }
+          });
+          if (best !== this.lastHighlight) {
+            this.clearHighlightCanvas();
+            if (best != null) {
+              this.view.getViewNodeFor(best).highlightArea.draw(this.highlightCtx);
+            }
+            return this.lastHighlight = best;
           }
-        });
-        if (best !== this.lastHighlight) {
-          this.clearHighlightCanvas();
-          if (best != null) {
-            this.view.getViewNodeFor(best).highlightArea.draw(this.highlightCtx);
-          }
-          return this.lastHighlight = best;
         }
       }
     });
@@ -4876,8 +4885,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })(DropOperation);
     FromFloatingOperation = (function() {
-      function FromFloatingOperation(record) {
-        this.position = new this.draw.Point(record.position.x, record.position.y);
+      function FromFloatingOperation(record, editor) {
+        this.position = new editor.draw.Point(record.position.x, record.position.y);
         this.block = record.block.clone();
       }
 
@@ -4968,7 +4977,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               this.addMicroUndoOperation('CAPTURE_POINT');
               state.addedCapturePoint = true;
             }
-            this.addMicroUndoOperation(new FromFloatingOperation(record));
+            this.addMicroUndoOperation(new FromFloatingOperation(record, this));
             this.floatingBlocks.splice(i, 1);
             this.redrawMain();
             return;
