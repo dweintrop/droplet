@@ -6712,9 +6712,16 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.aceEditor.session.setScrollTop(oldScrollTop);
       return this.setValue_raw(value);
     };
+    Editor.prototype.addEmptyLine = function(str) {
+      if (str.length === 0 || str[str.length - 1] === '\n') {
+        return str;
+      } else {
+        return str + '\n';
+      }
+    };
     Editor.prototype.getValue = function() {
       if (this.currentlyUsingBlocks) {
-        return this.tree.stringify();
+        return this.addEmptyLine(this.tree.stringify());
       } else {
         return this.aceEditor.getValue();
       }
