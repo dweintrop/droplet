@@ -4535,16 +4535,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return UndoOperation;
 
     })();
-    Editor.prototype.addMicroUndoOperation = function(operation) {
-      var head, next;
-      this.undoStack.push(operation);
+    Editor.prototype.removeBlankLines = function() {
+      var head, next, _results;
       head = this.tree.end.previousVisibleToken();
+      _results = [];
       while ((head != null ? head.type : void 0) === 'newline') {
         next = head.previousVisibleToken();
         head.remove();
-        head = next;
+        _results.push(head = next);
       }
-      return this.fireEvent('beforechange', [operation]);
+      return _results;
+    };
+    Editor.prototype.addMicroUndoOperation = function(operation) {
+      this.undoStack.push(operation);
+      return this.removeBlankLines();
     };
     Editor.prototype.undo = function() {
       var operation;
@@ -6708,6 +6712,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.tree = newParse;
       this.gutterVersion = -1;
       this.tree.start.insert(this.cursor);
+      this.removeBlankLines();
       this.redrawMain();
       return {
         success: true
