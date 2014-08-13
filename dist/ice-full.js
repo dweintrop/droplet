@@ -4338,20 +4338,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.topNubbyPath.style.fillColor = '#EBEBEB';
     });
     Editor.prototype.redrawMain = function(opts) {
-      var binding, layoutResult, oldScroll, _i, _len, _ref, _ref1, _ref2, _results;
+      var binding, layoutResult, oldScroll, _i, _len, _ref, _ref1, _ref2;
       if (opts == null) {
         opts = {};
       }
       if (!this.currentlyAnimating) {
-        if (this.changeEventVersion !== this.tree.version) {
-          this.suppressChangeEvent = true;
-          oldScroll = this.aceEditor.session.getScrollTop();
-          this.aceEditor.setValue(this.getValue(), -1);
-          this.suppressChangeEvent = false;
-          this.aceEditor.session.setScrollTop(oldScroll);
-          this.fireEvent('change', []);
-          this.changeEventVersion = this.tree.version;
-        }
         this.draw.setGlobalFontSize(this.fontSize);
         this.draw.setCtx(this.mainCtx);
         this.clearMain(opts);
@@ -4371,12 +4362,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.mainCtx.restore();
         }
         _ref2 = editorBindings.redraw_main;
-        _results = [];
         for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
           binding = _ref2[_i];
-          _results.push(binding.call(this, layoutResult));
+          binding.call(this, layoutResult);
         }
-        return _results;
+        if (this.changeEventVersion !== this.tree.version) {
+          this.changeEventVersion = this.tree.version;
+          this.suppressChangeEvent = true;
+          oldScroll = this.aceEditor.session.getScrollTop();
+          this.aceEditor.setValue(this.getValue(), -1);
+          this.suppressChangeEvent = false;
+          this.aceEditor.session.setScrollTop(oldScroll);
+          this.fireEvent('change', []);
+        }
+        return null;
       }
     };
     Editor.prototype.redrawHighlights = function() {
