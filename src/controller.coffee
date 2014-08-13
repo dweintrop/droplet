@@ -603,6 +603,12 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # and might possibly do some bureaucracy in the future.
   Editor::addMicroUndoOperation = (operation) ->
     @undoStack.push operation
+    
+    # Update the ace editor value to match,
+    # but don't trigger a resize event.
+    @suppressChangeEvent = true
+    @aceEditor.setValue @getValue()
+    @suppressChangeEvent = false
 
     # If someone has bound to mutation via
     # the public API, fire it.
@@ -1621,7 +1627,11 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     # Focus the hidden input.
     setTimeout (=>
       @hiddenInput.focus()
-      @hiddenInput.setSelectionRange 0, @hiddenInput.value.length
+      if @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
+         @hiddenInput.value[0] in ['\'', '"']
+        @hiddenInput.setSelectionRange 1, @hiddenInput.value.length - 1
+      else
+        @hiddenInput.setSelectionRange 0, @hiddenInput.value.length
       @redrawTextInput()
     ), 0
 
@@ -2445,9 +2455,10 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @aceEditor.getSession().setTabSize 2
 
     @aceEditor.on 'change', =>
-      @setFontSize_raw @aceEditor.getFontSize()
-      @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
-      @resize()
+      unless @suppressChangeEvent
+        @setFontSize_raw @aceEditor.getFontSize()
+        @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
+        @resize()
 
     @currentlyUsingBlocks = true
     @currentlyAnimating = false
@@ -3526,6 +3537,28 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   getFontHeight = (family, size) ->
     metrics = fontMetrics family, size
     return metrics.descent - metrics.ascent
+
+  # OVRFLOW BIT
+  # ================================
+
+  Editor::overflowsX = ->
+    @documentDimensions().width > @viewportDimensions().width
+
+  Editor::overflowsY = ->
+    @documentDimensions().height > @viewportDimensions().height
+
+  Editor::documentDimensions = ->
+    bounds = @view.getViewNodeFor(@tree).totalBounds
+    return {
+      width: bounds.width
+      height: bounds.height
+    }
+
+  Editor::viewportDimensions = ->
+    return {
+      width: @mainCanvas.width
+      height: @mainCanvas.height
+    }
 
   # DEBUG CODE
   # ================================

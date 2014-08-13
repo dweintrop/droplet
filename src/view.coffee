@@ -40,8 +40,12 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
       value: '#8cec79'
       command: '#8fbfef'
 
+      red: '#f2a6a6'
+      orange: '#efcf8f'
       yellow: '#ecec79'
+      green: '#8cec79'
       cyan: '#79ecd9'
+      blue: '#8fbfef'
       violet: '#bfa6f2'
       magenta: '#f2a6e5'
 
@@ -353,22 +357,15 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
       # line that we contain.
       #
       # Return child node.
-      #
-      # This is a void computeDimensinos that should be overridden.
       computeDimensions: (startLine, force, root = false) ->
         if @computedVersion is @model.version and not force
           return
 
         oldDimensions = @dimensions
         oldDistanceToBase = @distanceToBase
-
-        # copy min dimensions
-        if @dimensions.length > @lineLength
-          @dimensions.length = @distanceToBase.length = @lineLength
-        else
-          until @dimensions.length is @lineLength
-            @dimensions.push new draw.Size 0, 0
-            @distanceToBase.push {above: 0, below: 0}
+        
+        @dimensions = (new draw.Size 0, 0 for [0...@lineLength])
+        @distanceToBase = ({above: 0, below: 0} for [0...@lineLength])
 
         for size, i in @minDimensions
           @dimensions[i].width = size.width; @dimensions[i].height = size.height
@@ -539,6 +536,10 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
              not @changedBoundingBox
           return null
 
+        # Recurse.
+        for childObj in @children
+          @view.getViewNodeFor(childObj.child).computePath()
+
         # It is possible that we have a version increment
         # without changing bounding boxes. If this is the case,
         # we don't need to recompute our own path.
@@ -554,11 +555,20 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
           if @bounds.length > 0
             @totalBounds.unite @bounds[0]
             @totalBounds.unite @bounds[@bounds.length - 1]
-          @totalBounds.unite @path.bounds()
 
-        # Recurse.
-        for childObj in @children
-          @view.getViewNodeFor(childObj.child).computePath()
+          # Figure out our total bounding box however is faster.
+          if @bounds.length > @children.length
+            for child in @children
+              @totalBounds.unite @view.getViewNodeFor(child.child).totalBounds
+          else
+            maxRight = @totalBounds.right()
+            for bound in @bounds
+              @totalBounds.x = Math.min @totalBounds.x, bound.x
+              maxRight = Math.max maxRight, bound.y
+
+            @totalBounds.width = maxRight - @totalBounds.x
+
+          @totalBounds.unite @path.bounds()
 
         return null
 
@@ -1888,7 +1898,7 @@ define ['ice-draw', 'ice-model'], (draw, model) ->
     b = parseInt hex[5..6], 16
 
     return [r, g, b]
-  
+
   zeroPad = (str, len) ->
     if str.length < len
       ('0' for [str.length...len]).join('') + str
