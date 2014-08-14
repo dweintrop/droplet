@@ -5875,8 +5875,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         } else {
           head = this.cursor;
         }
-        while (!((head == null) || head.type === 'socketEnd' && head.container.start.next.type === 'text')) {
-          head = head.prev;
+        while (!((head == null) || head.type === 'socketStart' && (head.container.start.next.type === 'text' || head.container.start.next === head.container.end))) {
+          head = head.next;
         }
         if (head != null) {
           if ((this.textFocus != null) && head.container.hasParent(this.textFocus.parent)) {
@@ -5897,7 +5897,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         } else {
           head = this.cursor;
         }
-        while (!((head == null) || head.type === 'socketStart' && head.container.start.next.type === 'text')) {
+        while (!((head == null) || head.type === 'socketStart' && (head.container.start.next.type === 'text' || head.container.start.next === head.container.end))) {
           head = head.next;
         }
         if (head != null) {
@@ -6692,7 +6692,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if ((this.draggingBlock == null) && (this.clickedBlock == null) && this.hasEvent('linehover')) {
         mainPoint = this.trackerPointToMain(point);
         treeView = this.view.getViewNodeFor(this.tree);
-        if ((this.lastHoveredLine != null) && treeView.bounds[this.lastHoveredLine].contains(mainPoint)) {
+        if ((this.lastHoveredLine != null) && (treeView.bounds[this.lastHoveredLine] != null) && treeView.bounds[this.lastHoveredLine].contains(mainPoint)) {
           return;
         }
         hoveredLine = this.findLineNumberAtCoordinate(point.y);
