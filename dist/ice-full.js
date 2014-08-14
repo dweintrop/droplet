@@ -3144,202 +3144,10 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
 */;
 (function() {
   define('ice-parser',['ice-model'], function(model) {
-    var Parser, YES, applyMarkup, exports, parseObj, regenerateMarkup, removeFlaggedBlocks, sortMarkup;
+    var Parser, YES, applyMarkup, exports, parseObj, regenerateMarkup, sortMarkup, stripFlaggedBlocks;
     exports = {};
     YES = function() {
       return true;
-    };
-    sortMarkup = function(unsortedMarkup) {
-      unsortedMarkup.sort(function(a, b) {
-        if (a.location.line > b.location.line) {
-          return 1;
-        }
-        if (b.location.line > a.location.line) {
-          return -1;
-        }
-        if (a.location.column > b.location.column) {
-          return 1;
-        }
-        if (b.location.column > a.location.column) {
-          return -1;
-        }
-        if (a.start && !b.start) {
-          return 1;
-        }
-        if (b.start && !a.start) {
-          return -1;
-        }
-        if (a.start && b.start) {
-          if (a.depth > b.depth) {
-            return 1;
-          } else {
-            return -1;
-          }
-        }
-        if ((!a.start) && (!b.start)) {
-          if (a.depth > b.depth) {
-            return -1;
-          } else {
-            return 1;
-          }
-        }
-      });
-      return unsortedMarkup;
-    };
-    applyMarkup = function(text, sortedMarkup, opts) {
-      var block, document, head, i, indentDepth, lastIndex, line, lines, mark, markupOnLines, socket, stack, _i, _j, _k, _len, _len1, _len2, _name, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6;
-      markupOnLines = {};
-      for (_i = 0, _len = sortedMarkup.length; _i < _len; _i++) {
-        mark = sortedMarkup[_i];
-        if (markupOnLines[_name = mark.location.line] == null) {
-          markupOnLines[_name] = [];
-        }
-        markupOnLines[mark.location.line].push(mark);
-      }
-      lines = text.split('\n');
-      indentDepth = 0;
-      stack = [];
-      document = new model.Segment();
-      head = document.start;
-      for (i = _j = 0, _len1 = lines.length; _j < _len1; i = ++_j) {
-        line = lines[i];
-        if (!(i in markupOnLines)) {
-          if (indentDepth >= line.length || line.slice(0, +indentDepth + 1 || 9e9).trim().length > 0) {
-            head.specialIndent = ((function() {
-              var _k, _ref, _results;
-              _results = [];
-              for (_k = 0, _ref = line.length - line.trimLeft().length; 0 <= _ref ? _k < _ref : _k > _ref; 0 <= _ref ? _k++ : _k--) {
-                _results.push(' ');
-              }
-              return _results;
-            })()).join('');
-            line = line.trimLeft();
-          } else {
-            line = line.slice(indentDepth);
-          }
-          if (line.length > 0) {
-            if ((opts.wrapAtRoot && stack.length === 0) || ((_ref = stack[stack.length - 1]) != null ? _ref.type : void 0) === 'indent') {
-              block = new model.Block(0, 'blank', false);
-              socket = new model.Socket();
-              socket.handwritten = true;
-              head = head.append(block.start);
-              head = head.append(socket.start);
-              head = head.append(new model.TextToken(line));
-              head = head.append(socket.end);
-              head = head.append(block.end);
-            } else {
-              head = head.append(new model.TextToken(line));
-            }
-          }
-          head = head.append(new model.NewlineToken());
-        } else {
-          lastIndex = indentDepth;
-          _ref1 = markupOnLines[i];
-          for (_k = 0, _len2 = _ref1.length; _k < _len2; _k++) {
-            mark = _ref1[_k];
-            if (!(lastIndex >= mark.location.column || lastIndex >= line.length)) {
-              if ((opts.wrapAtRoot && stack.length === 0) || ((_ref2 = stack[stack.length - 1]) != null ? _ref2.type : void 0) === 'indent') {
-                block = new model.Block(0, '#ffffff', false);
-                head = head.append(block.start);
-                head = head.append(new model.TextToken(line.slice(lastIndex, mark.location.column)));
-                head = head.append(block.end);
-              } else {
-                head = head.append(new model.TextToken(line.slice(lastIndex, mark.location.column)));
-              }
-            }
-            switch (mark.token.type) {
-              case 'indentStart':
-                if ((stack != null ? (_ref3 = stack[stack.length - 1]) != null ? _ref3.type : void 0 : void 0) !== 'block') {
-                  throw new Error('Improper parser: indent must be inside block, but is inside ' + (stack != null ? (_ref4 = stack[stack.length - 1]) != null ? _ref4.type : void 0 : void 0));
-                }
-                stack.push(mark.token.container);
-                indentDepth += mark.token.container.depth;
-                head = head.append(mark.token);
-                break;
-              case 'blockStart':
-                if (((_ref5 = stack[stack.length - 1]) != null ? _ref5.type : void 0) === 'block') {
-                  throw new Error('Improper parser: block cannot nest immediately inside another block.');
-                }
-                stack.push(mark.token.container);
-                head = head.append(mark.token);
-                break;
-              case 'socketStart':
-                if (((_ref6 = stack[stack.length - 1]) != null ? _ref6.type : void 0) !== 'block') {
-                  throw new Error('Improper parser: socket must be immediately insode a block.');
-                }
-                stack.push(mark.token.container);
-                head = head.append(mark.token);
-                break;
-              case 'indentEnd':
-                if (mark.token.container !== stack[stack.length - 1]) {
-                  throw new Error('Improper parser: indent ended too early.');
-                }
-                stack.pop();
-                indentDepth -= mark.token.container.depth;
-                head = head.append(mark.token);
-                break;
-              case 'blockEnd':
-                if (mark.token.container !== stack[stack.length - 1]) {
-                  debugger;
-                  throw new Error('Improper parser: block ended too early.');
-                }
-                stack.pop();
-                head = head.append(mark.token);
-                break;
-              case 'socketEnd':
-                if (mark.token.container !== stack[stack.length - 1]) {
-                  throw new Error('Improper parser: socket ended too early.');
-                }
-                stack.pop();
-                head = head.append(mark.token);
-            }
-            lastIndex = mark.location.column;
-          }
-          if (!(lastIndex >= line.length)) {
-            head = head.append(new model.TextToken(line.slice(lastIndex, line.length)));
-          }
-          head = head.append(new model.NewlineToken());
-        }
-      }
-      head = head.prev;
-      head.next.remove();
-      head = head.append(document.end);
-      return document;
-    };
-    removeFlaggedBlocks = function(segment) {
-      var container, head, _results;
-      head = segment.start;
-      _results = [];
-      while (head !== segment.end) {
-        if (head instanceof model.StartToken && head.container.flagToRemove) {
-          container = head.container;
-          head = container.end.next;
-          _results.push(container.spliceOut());
-        } else {
-          _results.push(head = head.next);
-        }
-      }
-      return _results;
-    };
-    regenerateMarkup = function(markup) {
-      var mark, tags, _i, _len;
-      tags = [];
-      for (_i = 0, _len = markup.length; _i < _len; _i++) {
-        mark = markup[_i];
-        tags.push({
-          token: mark.container.start,
-          location: mark.bounds.start,
-          depth: mark.depth,
-          start: true
-        });
-        tags.push({
-          token: mark.container.end,
-          location: mark.bounds.end,
-          depth: mark.depth,
-          start: false
-        });
-      }
-      return tags;
     };
     exports.Parser = Parser = (function() {
       function Parser(parseFn) {
@@ -3347,11 +3155,12 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
       }
 
       Parser.prototype.parse = function(text, opts) {
-        var markup, segment;
-        markup = regenerateMarkup(this.parseFn(text));
+        var marks, markup, segment, _ref;
+        _ref = this.parseFn(text), marks = _ref[0], text = _ref[1];
+        markup = regenerateMarkup(marks);
         sortMarkup(markup);
         segment = applyMarkup(text, markup, opts);
-        removeFlaggedBlocks(segment);
+        stripFlaggedBlocks(segment);
         segment.correctParentTree();
         return segment;
       };
@@ -3445,6 +3254,208 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
         }
       }
     };
+    sortMarkup = function(unsortedMarkup) {
+      unsortedMarkup.sort(function(a, b) {
+        if (a.location.line > b.location.line) {
+          return 1;
+        }
+        if (b.location.line > a.location.line) {
+          return -1;
+        }
+        if (a.location.column > b.location.column) {
+          return 1;
+        }
+        if (b.location.column > a.location.column) {
+          return -1;
+        }
+        if (a.start && !b.start) {
+          return 1;
+        }
+        if (b.start && !a.start) {
+          return -1;
+        }
+        if (a.start && b.start) {
+          if (a.depth > b.depth) {
+            return 1;
+          } else {
+            return -1;
+          }
+        }
+        if ((!a.start) && (!b.start)) {
+          if (a.depth > b.depth) {
+            return -1;
+          } else {
+            return 1;
+          }
+        }
+      });
+      return unsortedMarkup;
+    };
+    applyMarkup = function(text, sortedMarkup, opts) {
+      var block, document, head, i, indentDepth, lastIndex, line, lines, mark, markupOnLines, socket, stack, _i, _j, _k, _len, _len1, _len2, _name, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6;
+      markupOnLines = {};
+      for (_i = 0, _len = sortedMarkup.length; _i < _len; _i++) {
+        mark = sortedMarkup[_i];
+        if (markupOnLines[_name = mark.location.line] == null) {
+          markupOnLines[_name] = [];
+        }
+        markupOnLines[mark.location.line].push(mark);
+      }
+      lines = text.split('\n');
+      indentDepth = 0;
+      stack = [];
+      document = new model.Segment();
+      head = document.start;
+      for (i = _j = 0, _len1 = lines.length; _j < _len1; i = ++_j) {
+        line = lines[i];
+        if (!(i in markupOnLines)) {
+          if (indentDepth >= line.length || line.slice(0, +indentDepth + 1 || 9e9).trim().length > 0) {
+            head.specialIndent = ((function() {
+              var _k, _ref, _results;
+              _results = [];
+              for (_k = 0, _ref = line.length - line.trimLeft().length; 0 <= _ref ? _k < _ref : _k > _ref; 0 <= _ref ? _k++ : _k--) {
+                _results.push(' ');
+              }
+              return _results;
+            })()).join('');
+            line = line.trimLeft();
+          } else {
+            line = line.slice(indentDepth);
+          }
+          if (line.length > 0) {
+            if ((opts.wrapAtRoot && stack.length === 0) || ((_ref = stack[stack.length - 1]) != null ? _ref.type : void 0) === 'indent') {
+              block = new model.Block(0, 'blank', false);
+              socket = new model.Socket();
+              socket.handwritten = true;
+              head = head.append(block.start);
+              head = head.append(socket.start);
+              head = head.append(new model.TextToken(line));
+              head = head.append(socket.end);
+              head = head.append(block.end);
+            } else {
+              head = head.append(new model.TextToken(line));
+            }
+          }
+          head = head.append(new model.NewlineToken());
+        } else {
+          lastIndex = indentDepth;
+          _ref1 = markupOnLines[i];
+          for (_k = 0, _len2 = _ref1.length; _k < _len2; _k++) {
+            mark = _ref1[_k];
+            if (!(lastIndex >= mark.location.column || lastIndex >= line.length)) {
+              if ((opts.wrapAtRoot && stack.length === 0) || ((_ref2 = stack[stack.length - 1]) != null ? _ref2.type : void 0) === 'indent') {
+                block = new model.Block(0, 'blank', false);
+                socket = new model.Socket();
+                socket.handwritten = true;
+                head = head.append(block.start);
+                head = head.append(socket.start);
+                head = head.append(new model.TextToken(line.slice(lastIndex, mark.location.column)));
+                head = head.append(socket.end);
+                head = head.append(block.end);
+              } else {
+                head = head.append(new model.TextToken(line.slice(lastIndex, mark.location.column)));
+              }
+            }
+            switch (mark.token.type) {
+              case 'indentStart':
+                if ((stack != null ? (_ref3 = stack[stack.length - 1]) != null ? _ref3.type : void 0 : void 0) !== 'block') {
+                  throw new Error('Improper parser: indent must be inside block, but is inside ' + (stack != null ? (_ref4 = stack[stack.length - 1]) != null ? _ref4.type : void 0 : void 0));
+                }
+                stack.push(mark.token.container);
+                indentDepth += mark.token.container.depth;
+                head = head.append(mark.token);
+                break;
+              case 'blockStart':
+                if (((_ref5 = stack[stack.length - 1]) != null ? _ref5.type : void 0) === 'block') {
+                  throw new Error('Improper parser: block cannot nest immediately inside another block.');
+                }
+                stack.push(mark.token.container);
+                head = head.append(mark.token);
+                break;
+              case 'socketStart':
+                if (((_ref6 = stack[stack.length - 1]) != null ? _ref6.type : void 0) !== 'block') {
+                  throw new Error('Improper parser: socket must be immediately insode a block.');
+                }
+                stack.push(mark.token.container);
+                head = head.append(mark.token);
+                break;
+              case 'indentEnd':
+                if (mark.token.container !== stack[stack.length - 1]) {
+                  throw new Error('Improper parser: indent ended too early.');
+                }
+                stack.pop();
+                indentDepth -= mark.token.container.depth;
+                head = head.append(mark.token);
+                break;
+              case 'blockEnd':
+                if (mark.token.container !== stack[stack.length - 1]) {
+                  debugger;
+                  throw new Error('Improper parser: block ended too early.');
+                }
+                stack.pop();
+                head = head.append(mark.token);
+                break;
+              case 'socketEnd':
+                if (mark.token.container !== stack[stack.length - 1]) {
+                  throw new Error('Improper parser: socket ended too early.');
+                }
+                stack.pop();
+                head = head.append(mark.token);
+            }
+            lastIndex = mark.location.column;
+          }
+          if (!(lastIndex >= line.length)) {
+            head = head.append(new model.TextToken(line.slice(lastIndex, line.length)));
+          }
+          head = head.append(new model.NewlineToken());
+        }
+      }
+      head = head.prev;
+      head.next.remove();
+      head = head.append(document.end);
+      return document;
+    };
+    stripFlaggedBlocks = function(segment) {
+      var container, head, text, _results;
+      head = segment.start;
+      _results = [];
+      while (head !== segment.end) {
+        if (head instanceof model.StartToken && head.container.flagToRemove) {
+          container = head.container;
+          head = container.end.next;
+          _results.push(container.spliceOut());
+        } else if (head instanceof model.StartToken && head.container.flagToStrip) {
+          console.log('flagToStrip');
+          text = head.next;
+          console.log('stripping ', text.value);
+          text.value = text.value.substring(head.container.flagToStrip.left, text.value.length - head.container.flagToStrip.right);
+          _results.push(head = text.next);
+        } else {
+          _results.push(head = head.next);
+        }
+      }
+      return _results;
+    };
+    regenerateMarkup = function(markup, newtext) {
+      var mark, tags, _i, _len;
+      tags = [];
+      for (_i = 0, _len = markup.length; _i < _len; _i++) {
+        mark = markup[_i];
+        tags.push({
+          token: mark.container.start,
+          location: mark.bounds.start,
+          depth: mark.depth,
+          start: true
+        });
+        tags.push({
+          token: mark.container.end,
+          location: mark.bounds.end,
+          depth: mark.depth,
+          start: false
+        });
+      }
+      return tags;
+    };
     return exports;
   });
 
@@ -3469,7 +3480,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
   var __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('ice-coffee',['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], function(helper, model, parser, CoffeeScript) {
-    var ANY_DROP, BLOCK_FUNCTIONS, BLOCK_ONLY, CoffeeScriptTranspiler, MOSTLY_BLOCK, MOSTLY_VALUE, NO, OPERATOR_PRECEDENCES, VALUE_FUNCTIONS, VALUE_ONLY, YES, coffeeScriptParser, exports;
+    var ANY_DROP, BLOCK_FUNCTIONS, BLOCK_ONLY, CoffeeScriptTranspiler, MOSTLY_BLOCK, MOSTLY_VALUE, NO, OPERATOR_PRECEDENCES, VALUE_FUNCTIONS, VALUE_ONLY, YES, addEmptyBackTickLineAfter, backTickLine, coffeeScriptParser, exports, fixCoffeeScriptError, spacestring;
     exports = {};
     ANY_DROP = helper.ANY_DROP;
     BLOCK_ONLY = helper.BLOCK_ONLY;
@@ -3502,12 +3513,44 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     NO = function() {
       return false;
     };
+    spacestring = function(n) {
+      return ((function() {
+        var _i, _ref, _results;
+        _results = [];
+        for (_i = 0, _ref = Math.max(0, n); 0 <= _ref ? _i < _ref : _i > _ref; 0 <= _ref ? _i++ : _i--) {
+          _results.push(' ');
+        }
+        return _results;
+      })()).join('');
+    };
     CoffeeScriptTranspiler = (function() {
       function CoffeeScriptTranspiler(text) {
-        var i, line, token, tokens, _i, _j, _k, _len, _len1, _ref, _ref1, _ref2;
+        var i, line, _i, _len, _ref;
         this.text = text;
         this.markup = [];
         this.lines = this.text.split('\n');
+        this.hasLineBeenMarked = {};
+        _ref = this.lines;
+        for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
+          line = _ref[i];
+          this.hasLineBeenMarked[i] = false;
+        }
+      }
+
+      CoffeeScriptTranspiler.prototype.transpile = function() {
+        var node, nodes, _i, _len;
+        this.stripComments();
+        nodes = CoffeeScript.nodes(this.text).expressions;
+        for (_i = 0, _len = nodes.length; _i < _len; _i++) {
+          node = nodes[_i];
+          this.mark(node, 3, 0, null, 0);
+        }
+        this.wrapSemicolons(nodes, 0);
+        return this.markup;
+      };
+
+      CoffeeScriptTranspiler.prototype.stripComments = function() {
+        var i, line, token, tokens, _i, _j, _len, _ref, _ref1;
         tokens = CoffeeScript.tokens(this.text, {
           rewrite: false,
           preserveComments: true
@@ -3517,45 +3560,301 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           if (token[0] === 'COMMENT') {
             if (token[2].first_line === token[2].last_line) {
               line = this.lines[token[2].first_line];
-              this.lines[token[2].first_line] = line.slice(0, token[2].first_column) + ((function() {
-                var _j, _ref, _ref1, _results;
-                _results = [];
-                for (_j = _ref = token[2].first_column, _ref1 = token[2].last_column; _ref <= _ref1 ? _j <= _ref1 : _j >= _ref1; _ref <= _ref1 ? _j++ : _j--) {
-                  _results.push(' ');
-                }
-                return _results;
-              })()).join('') + line.slice(token[2].last_column);
+              this.lines[token[2].first_line] = line.slice(0, token[2].first_column) + spacestring(token[2].last_column - token[2].first_column + 1) + line.slice(token[2].last_column);
             } else {
               line = this.lines[token[2].first_line];
-              this.lines[token[2].first_line] = line.slice(0, token[2].first_column) + ((function() {
-                var _j, _ref, _ref1, _results;
-                _results = [];
-                for (_j = _ref = token[2].first_column, _ref1 = line.length; _ref <= _ref1 ? _j <= _ref1 : _j >= _ref1; _ref <= _ref1 ? _j++ : _j--) {
-                  _results.push(' ');
-                }
-                return _results;
-              })()).join('');
-              this.lines[token[2].last_line] = ((function() {
-                var _j, _ref, _results;
-                _results = [];
-                for (_j = 1, _ref = this.lines[token[2].last_line].length; 1 <= _ref ? _j <= _ref : _j >= _ref; 1 <= _ref ? _j++ : _j--) {
-                  _results.push(' ');
-                }
-                return _results;
-              }).call(this)).join('');
+              this.lines[token[2].first_line] = line.slice(0, token[2].first_column) + spacestring(line.length - token[2].first_column);
+              this.lines[token[2].last_line] = spacestring(token[2].last_column + 1) + this.lines[token[2].last_line].slice(token[2].last_column + 1);
               for (i = _j = _ref = token[2].first_line + 1, _ref1 = token[2].last_line; _ref <= _ref1 ? _j < _ref1 : _j > _ref1; i = _ref <= _ref1 ? ++_j : --_j) {
-                this.lines[i] = this.lines[i].replace(/./g, ' ');
+                this.lines[i] = spacestring(this.lines[i].length);
               }
             }
           }
         }
-        this.hasLineBeenMarked = {};
-        _ref2 = this.lines;
-        for (i = _k = 0, _len1 = _ref2.length; _k < _len1; i = ++_k) {
-          line = _ref2[i];
-          this.hasLineBeenMarked[i] = false;
+        return null;
+      };
+
+      CoffeeScriptTranspiler.prototype.mark = function(node, depth, precedence, wrappingParen, indentDepth) {
+        var arg, bounds, childName, condition, errorSocket, expr, fakeBlock, firstBounds, indent, index, infix, line, lines, methodname, object, param, property, secondBounds, shouldBeOneLine, switchCase, textLine, trueIndentDepth, _i, _j, _k, _l, _len, _len1, _len10, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _results, _results1, _results2, _results3, _results4, _s, _t;
+        switch (node.nodeType()) {
+          case 'Block':
+            if (node.expressions.length === 0) {
+              return;
+            }
+            bounds = this.getBounds(node);
+            shouldBeOneLine = false;
+            for (line = _i = _ref = bounds.start.line, _ref1 = bounds.end.line; _ref <= _ref1 ? _i <= _ref1 : _i >= _ref1; line = _ref <= _ref1 ? ++_i : --_i) {
+              shouldBeOneLine || (shouldBeOneLine = this.hasLineBeenMarked[line]);
+            }
+            if (this.lines[bounds.start.line].slice(0, bounds.start.column).trim().length !== 0) {
+              shouldBeOneLine = true;
+            }
+            if (shouldBeOneLine) {
+              this.addSocket(node, depth, 0);
+            } else {
+              textLine = this.lines[node.locationData.first_line];
+              trueIndentDepth = textLine.length - textLine.trimLeft().length;
+              indent = new model.Indent(this.lines[node.locationData.first_line].slice(indentDepth, trueIndentDepth));
+              indentDepth = trueIndentDepth;
+              while (bounds.start.line > 0 && this.lines[bounds.start.line - 1].trim().length === 0) {
+                bounds.start.line -= 1;
+                bounds.start.column = this.lines[bounds.start.line].length + 1;
+              }
+              bounds.start.line -= 1;
+              bounds.start.column = this.lines[bounds.start.line].length + 1;
+              this.addMarkupAtLocation(indent, bounds, depth);
+            }
+            _ref2 = node.expressions;
+            for (_j = 0, _len = _ref2.length; _j < _len; _j++) {
+              expr = _ref2[_j];
+              this.mark(expr, depth + 3, 0, null, indentDepth);
+            }
+            return this.wrapSemicolons(node.expressions, depth);
+          case 'Parens':
+            if (node.body != null) {
+              if (node.body.nodeType() !== 'Block') {
+                return this.mark(node.body, depth + 1, 0, wrappingParen != null ? wrappingParen : node, indentDepth);
+              } else {
+                if (node.body.unwrap() === node.body) {
+                  this.addBlock(node, depth, 0, 'command', null, MOSTLY_BLOCK);
+                  _ref3 = node.body.expressions;
+                  _results = [];
+                  for (_k = 0, _len1 = _ref3.length; _k < _len1; _k++) {
+                    expr = _ref3[_k];
+                    _results.push(this.addSocketAndMark(expr, depth + 1, 0, indentDepth));
+                  }
+                  return _results;
+                } else {
+                  return this.mark(node.body.unwrap(), depth + 1, 0, wrappingParen != null ? wrappingParen : node, indentDepth);
+                }
+              }
+            }
+            break;
+          case 'Op':
+            if ((node.first != null) && (node.second != null) && node.operator === '+') {
+              firstBounds = this.getBounds(node.first);
+              secondBounds = this.getBounds(node.second);
+              lines = this.lines.slice(firstBounds.end.line, +secondBounds.start.line + 1 || 9e9).join('\n');
+              infix = lines.slice(firstBounds.end.column, -(this.lines[secondBounds.start.line].length - secondBounds.start.column));
+              if (infix.indexOf('+') === -1) {
+                return;
+              }
+            }
+            this.addBlock(node, depth, OPERATOR_PRECEDENCES[node.operator], 'value', wrappingParen, VALUE_ONLY);
+            this.addSocketAndMark(node.first, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth);
+            if (node.second != null) {
+              return this.addSocketAndMark(node.second, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth);
+            }
+            break;
+          case 'Existence':
+            this.addBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
+            return this.addSocketAndMark(node.expression, depth + 1, 101, indentDepth);
+          case 'In':
+            this.addBlock(node, depth, 0, 'value', wrappingParen, VALUE_ONLY);
+            this.addSocketAndMark(node.object, depth + 1, 0, indentDepth);
+            return this.addSocketAndMark(node.array, depth + 1, 0, indentDepth);
+          case 'Value':
+            if ((node.properties != null) && node.properties.length > 0) {
+              this.addBlock(node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE);
+              this.addSocketAndMark(node.base, depth + 1, precedence, indentDepth);
+              _ref4 = node.properties;
+              _results1 = [];
+              for (_l = 0, _len2 = _ref4.length; _l < _len2; _l++) {
+                property = _ref4[_l];
+                if (property.nodeType() === 'Access') {
+                  _results1.push(this.addSocketAndMark(property.name, depth + 1, precedence, indentDepth, NO));
+                } else if (property.nodeType() === 'Index') {
+                  _results1.push(this.addSocketAndMark(property.index, depth + 1, precedence, indentDepth));
+                } else {
+                  _results1.push(void 0);
+                }
+              }
+              return _results1;
+            } else if (node.base.nodeType() === 'Literal' && node.base.value === '') {
+              fakeBlock = this.addBlock(node.base, depth, 0, 'value', wrappingParen, ANY_DROP);
+              return fakeBlock.flagToRemove = true;
+            } else if (node.base.nodeType() === 'Literal' && /^#/.test(node.base.value)) {
+              console.log('found hashmark');
+              this.addBlock(node.base, depth, 0, 'blank', wrappingParen, ANY_DROP);
+              errorSocket = this.addSocket(node.base, depth + 1, -2);
+              return errorSocket.flagToStrip = {
+                left: 2,
+                right: 1
+              };
+            } else {
+              return this.mark(node.base, depth + 1, precedence, wrappingParen, indentDepth);
+            }
+            break;
+          case 'Literal':
+          case 'Bool':
+          case 'Undefined':
+          case 'Null':
+            return 0;
+          case 'Call':
+            if (node.variable != null) {
+              methodname = null;
+              if (((_ref5 = node.variable.properties) != null ? _ref5.length : void 0) > 0) {
+                methodname = (_ref6 = node.variable.properties[node.variable.properties.length - 1].name) != null ? _ref6.value : void 0;
+              } else if ((_ref7 = node.variable.base) != null ? _ref7.value : void 0) {
+                methodname = node.variable.base.value;
+              }
+              if (__indexOf.call(BLOCK_FUNCTIONS, methodname) >= 0) {
+                this.addBlock(node, depth, 0, 'command', wrappingParen, MOSTLY_BLOCK);
+              } else if (__indexOf.call(VALUE_FUNCTIONS, methodname) >= 0) {
+                this.addBlock(node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE);
+              } else {
+                this.addBlock(node, depth, 0, 'command', wrappingParen, ANY_DROP);
+              }
+              if (((_ref8 = node.variable.base) != null ? _ref8.nodeType() : void 0) !== 'Literal') {
+                this.addSocketAndMark(node.variable, depth + 1, 0, indentDepth);
+              } else if (((_ref9 = node.variable.properties) != null ? _ref9.length : void 0) > 0) {
+                this.addSocketAndMark(node.variable.base, depth + 1, 0, indentDepth);
+              }
+            } else {
+              this.addBlock(node, depth, precedence, 'command', wrappingParen, ANY_DROP);
+            }
+            if (!node["do"]) {
+              _ref10 = node.args;
+              _results2 = [];
+              for (index = _m = 0, _len3 = _ref10.length; _m < _len3; index = ++_m) {
+                arg = _ref10[index];
+                precedence = 0;
+                if (index === node.args.length - 1) {
+                  precedence = -1;
+                }
+                _results2.push(this.addSocketAndMark(arg, depth + 1, precedence, indentDepth));
+              }
+              return _results2;
+            }
+            break;
+          case 'Code':
+            this.addBlock(node, depth, precedence, 'value', wrappingParen, VALUE_ONLY);
+            _ref11 = node.params;
+            for (_n = 0, _len4 = _ref11.length; _n < _len4; _n++) {
+              param = _ref11[_n];
+              this.addSocketAndMark(param, depth + 1, 0, indentDepth, NO);
+            }
+            return this.mark(node.body, depth + 1, 0, null, indentDepth);
+          case 'Assign':
+            this.addBlock(node, depth, precedence, 'command', wrappingParen, MOSTLY_BLOCK);
+            this.addSocketAndMark(node.variable, depth + 1, 0, indentDepth, function(block) {
+              return block.nodeType === 'Value';
+            });
+            return this.addSocketAndMark(node.value, depth + 1, 0, indentDepth);
+          case 'For':
+            this.addBlock(node, depth, precedence, 'control', wrappingParen, MOSTLY_BLOCK);
+            _ref12 = ['source', 'from', 'guard', 'step'];
+            for (_o = 0, _len5 = _ref12.length; _o < _len5; _o++) {
+              childName = _ref12[_o];
+              if (node[childName] != null) {
+                this.addSocketAndMark(node[childName], depth + 1, 0, indentDepth);
+              }
+            }
+            _ref13 = ['index', 'name'];
+            for (_p = 0, _len6 = _ref13.length; _p < _len6; _p++) {
+              childName = _ref13[_p];
+              if (node[childName] != null) {
+                this.addSocketAndMark(node[childName], depth + 1, 0, indentDepth, NO);
+              }
+            }
+            return this.mark(node.body, depth + 1, 0, null, indentDepth);
+          case 'Range':
+            this.addBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
+            this.addSocketAndMark(node.from, depth, 0, indentDepth);
+            return this.addSocketAndMark(node.to, depth, 0, indentDepth);
+          case 'If':
+            this.addBlock(node, depth, precedence, 'control', wrappingParen, MOSTLY_BLOCK);
+            /*
+            bounds = @getBounds node
+            if @lines[bounds.start.line].indexOf('unless') >= 0 and
+                @locationsAreIdentical(bounds.start, @getBounds(node.condition).start) and
+                node.condition.nodeType() is 'Op'
+            
+              @addSocketAndMark node.condition.first, depth + 1, 0, indentDepth
+            else
+            */
+
+            this.addSocketAndMark(node.rawCondition, depth + 1, 0, indentDepth);
+            this.mark(node.body, depth + 1, 0, null, indentDepth);
+            if (node.elseBody != null) {
+              this.flagLineAsMarked(node.elseToken.first_line);
+              return this.mark(node.elseBody, depth + 1, 0, null, indentDepth);
+            }
+            break;
+          case 'Arr':
+            this.addBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
+            _ref14 = node.objects;
+            _results3 = [];
+            for (_q = 0, _len7 = _ref14.length; _q < _len7; _q++) {
+              object = _ref14[_q];
+              _results3.push(this.addSocketAndMark(object, depth + 1, 0, indentDepth));
+            }
+            return _results3;
+            break;
+          case 'Return':
+            this.addBlock(node, depth, precedence, 'return', wrappingParen, BLOCK_ONLY);
+            if (node.expression != null) {
+              return this.addSocketAndMark(node.expression, depth + 1, 0, indentDepth);
+            }
+            break;
+          case 'While':
+            this.addBlock(node, depth, precedence, 'control', wrappingParen, MOSTLY_BLOCK);
+            this.addSocketAndMark(node.rawCondition, depth + 1, 0, indentDepth);
+            if (node.guard != null) {
+              this.addSocketAndMark(node.guard, depth + 1, 0, indentDepth);
+            }
+            return this.mark(node.body, depth + 1, 0, null, indentDepth);
+          case 'Switch':
+            this.addBlock(node, depth, 0, 'control', wrappingParen, MOSTLY_BLOCK);
+            if (node.subject != null) {
+              this.addSocketAndMark(node.subject, depth + 1, 0, indentDepth);
+            }
+            _ref15 = node.cases;
+            for (_r = 0, _len8 = _ref15.length; _r < _len8; _r++) {
+              switchCase = _ref15[_r];
+              if (switchCase[0].constructor === Array) {
+                _ref16 = switchCase[0];
+                for (_s = 0, _len9 = _ref16.length; _s < _len9; _s++) {
+                  condition = _ref16[_s];
+                  this.addSocketAndMark(condition, depth + 1, 0, indentDepth);
+                }
+              } else {
+                this.addSocketAndMark(switchCase[0], depth + 1, 0, indentDepth);
+              }
+              this.mark(switchCase[1], depth + 1, 0, null, indentDepth);
+            }
+            if (node.otherwise != null) {
+              return this.mark(node.otherwise, depth + 1, 0, null, indentDepth);
+            }
+            break;
+          case 'Class':
+            this.addBlock(node, depth, 0, 'control', wrappingParen, ANY_DROP);
+            if (node.variable != null) {
+              this.addSocketAndMark(node.variable, depth + 1, 0, indentDepth, NO);
+            }
+            if (node.parent != null) {
+              this.addSocketAndMark(node.parent, depth + 1, 0, indentDepth);
+            }
+            if (node.body != null) {
+              return this.mark(node.body, depth + 1, 0, null, indentDepth);
+            }
+            break;
+          case 'Obj':
+            this.addBlock(node, depth, 0, 'value', wrappingParen, VALUE_ONLY);
+            _ref17 = node.properties;
+            _results4 = [];
+            for (_t = 0, _len10 = _ref17.length; _t < _len10; _t++) {
+              property = _ref17[_t];
+              if (property.nodeType() === 'Assign') {
+                this.addSocketAndMark(property.variable, depth + 1, 0, indentDepth, NO);
+                _results4.push(this.addSocketAndMark(property.value, depth + 1, 0, indentDepth));
+              } else {
+                _results4.push(void 0);
+              }
+            }
+            return _results4;
         }
-      }
+      };
 
       CoffeeScriptTranspiler.prototype.locationsAreIdentical = function(a, b) {
         return a.line === b.line && a.column === b.column;
@@ -3735,299 +4034,63 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
       };
 
-      CoffeeScriptTranspiler.prototype.mark = function(node, depth, precedence, wrappingParen, indentDepth) {
-        var arg, bounds, childName, condition, expr, fakeBlock, firstBounds, indent, index, infix, line, lines, methodname, object, param, property, secondBounds, shouldBeOneLine, switchCase, textLine, trueIndentDepth, _i, _j, _k, _l, _len, _len1, _len10, _len2, _len3, _len4, _len5, _len6, _len7, _len8, _len9, _m, _n, _o, _p, _q, _r, _ref, _ref1, _ref10, _ref11, _ref12, _ref13, _ref14, _ref15, _ref16, _ref17, _ref2, _ref3, _ref4, _ref5, _ref6, _ref7, _ref8, _ref9, _results, _results1, _results2, _results3, _results4, _s, _t;
-        switch (node.nodeType()) {
-          case 'Block':
-            if (node.expressions.length === 0) {
-              return;
-            }
-            bounds = this.getBounds(node);
-            shouldBeOneLine = false;
-            for (line = _i = _ref = bounds.start.line, _ref1 = bounds.end.line; _ref <= _ref1 ? _i <= _ref1 : _i >= _ref1; line = _ref <= _ref1 ? ++_i : --_i) {
-              shouldBeOneLine || (shouldBeOneLine = this.hasLineBeenMarked[line]);
-            }
-            if (this.lines[bounds.start.line].slice(0, bounds.start.column).trim().length !== 0) {
-              shouldBeOneLine = true;
-            }
-            if (shouldBeOneLine) {
-              this.addSocket(node, depth, 0);
-            } else {
-              textLine = this.lines[node.locationData.first_line];
-              trueIndentDepth = textLine.length - textLine.trimLeft().length;
-              indent = new model.Indent(this.lines[node.locationData.first_line].slice(indentDepth, trueIndentDepth));
-              indentDepth = trueIndentDepth;
-              while (bounds.start.line > 0 && this.lines[bounds.start.line - 1].trim().length === 0) {
-                bounds.start.line -= 1;
-                bounds.start.column = this.lines[bounds.start.line].length + 1;
-              }
-              bounds.start.line -= 1;
-              bounds.start.column = this.lines[bounds.start.line].length + 1;
-              this.addMarkupAtLocation(indent, bounds, depth);
-            }
-            _ref2 = node.expressions;
-            for (_j = 0, _len = _ref2.length; _j < _len; _j++) {
-              expr = _ref2[_j];
-              this.mark(expr, depth + 3, 0, null, indentDepth);
-            }
-            return this.wrapSemicolons(node.expressions, depth);
-          case 'Parens':
-            if (node.body != null) {
-              if (node.body.nodeType() !== 'Block') {
-                return this.mark(node.body, depth + 1, 0, wrappingParen != null ? wrappingParen : node, indentDepth);
-              } else {
-                if (node.body.unwrap() === node.body) {
-                  this.addBlock(node, depth, 0, 'command', null, MOSTLY_BLOCK);
-                  _ref3 = node.body.expressions;
-                  _results = [];
-                  for (_k = 0, _len1 = _ref3.length; _k < _len1; _k++) {
-                    expr = _ref3[_k];
-                    _results.push(this.addSocketAndMark(expr, depth + 1, 0, indentDepth));
-                  }
-                  return _results;
-                } else {
-                  return this.mark(node.body.unwrap(), depth + 1, 0, wrappingParen != null ? wrappingParen : node, indentDepth);
-                }
-              }
-            }
-            break;
-          case 'Op':
-            if ((node.first != null) && (node.second != null) && node.operator === '+') {
-              firstBounds = this.getBounds(node.first);
-              secondBounds = this.getBounds(node.second);
-              lines = this.lines.slice(firstBounds.end.line, +secondBounds.start.line + 1 || 9e9).join('\n');
-              infix = lines.slice(firstBounds.end.column, -(this.lines[secondBounds.start.line].length - secondBounds.start.column));
-              if (infix.indexOf('+') === -1) {
-                return;
-              }
-            }
-            this.addBlock(node, depth, OPERATOR_PRECEDENCES[node.operator], 'value', wrappingParen, VALUE_ONLY);
-            this.addSocketAndMark(node.first, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth);
-            if (node.second != null) {
-              return this.addSocketAndMark(node.second, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth);
-            }
-            break;
-          case 'Existence':
-            this.addBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
-            return this.addSocketAndMark(node.expression, depth + 1, 101, indentDepth);
-          case 'In':
-            this.addBlock(node, depth, 0, 'value', wrappingParen, VALUE_ONLY);
-            this.addSocketAndMark(node.object, depth + 1, 0, indentDepth);
-            return this.addSocketAndMark(node.array, depth + 1, 0, indentDepth);
-          case 'Value':
-            if ((node.properties != null) && node.properties.length > 0) {
-              this.addBlock(node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE);
-              this.addSocketAndMark(node.base, depth + 1, precedence, indentDepth);
-              _ref4 = node.properties;
-              _results1 = [];
-              for (_l = 0, _len2 = _ref4.length; _l < _len2; _l++) {
-                property = _ref4[_l];
-                if (property.nodeType() === 'Access') {
-                  _results1.push(this.addSocketAndMark(property.name, depth + 1, precedence, indentDepth, NO));
-                } else if (property.nodeType() === 'Index') {
-                  _results1.push(this.addSocketAndMark(property.index, depth + 1, precedence, indentDepth));
-                } else {
-                  _results1.push(void 0);
-                }
-              }
-              return _results1;
-            } else if (node.base.nodeType() === 'Literal' && node.base.value === '') {
-              fakeBlock = this.addBlock(node.base, depth, 0, 'value', wrappingParen, ANY_DROP);
-              return fakeBlock.flagToRemove = true;
-            } else {
-              return this.mark(node.base, depth + 1, precedence, wrappingParen, indentDepth);
-            }
-            break;
-          case 'Literal':
-          case 'Bool':
-          case 'Undefined':
-          case 'Null':
-            return 0;
-          case 'Call':
-            if (node.variable != null) {
-              methodname = null;
-              if (((_ref5 = node.variable.properties) != null ? _ref5.length : void 0) > 0) {
-                methodname = (_ref6 = node.variable.properties[node.variable.properties.length - 1].name) != null ? _ref6.value : void 0;
-              } else if ((_ref7 = node.variable.base) != null ? _ref7.value : void 0) {
-                methodname = node.variable.base.value;
-              }
-              if (__indexOf.call(BLOCK_FUNCTIONS, methodname) >= 0) {
-                this.addBlock(node, depth, 0, 'command', wrappingParen, MOSTLY_BLOCK);
-              } else if (__indexOf.call(VALUE_FUNCTIONS, methodname) >= 0) {
-                this.addBlock(node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE);
-              } else {
-                this.addBlock(node, depth, 0, 'command', wrappingParen, ANY_DROP);
-              }
-              if (((_ref8 = node.variable.base) != null ? _ref8.nodeType() : void 0) !== 'Literal') {
-                this.addSocketAndMark(node.variable, depth + 1, 0, indentDepth);
-              } else if (((_ref9 = node.variable.properties) != null ? _ref9.length : void 0) > 0) {
-                this.addSocketAndMark(node.variable.base, depth + 1, 0, indentDepth);
-              }
-            } else {
-              this.addBlock(node, depth, precedence, 'command', wrappingParen, ANY_DROP);
-            }
-            if (!node["do"]) {
-              _ref10 = node.args;
-              _results2 = [];
-              for (index = _m = 0, _len3 = _ref10.length; _m < _len3; index = ++_m) {
-                arg = _ref10[index];
-                precedence = 0;
-                if (index === node.args.length - 1) {
-                  precedence = -1;
-                }
-                _results2.push(this.addSocketAndMark(arg, depth + 1, precedence, indentDepth));
-              }
-              return _results2;
-            }
-            break;
-          case 'Code':
-            this.addBlock(node, depth, precedence, 'value', wrappingParen, VALUE_ONLY);
-            _ref11 = node.params;
-            for (_n = 0, _len4 = _ref11.length; _n < _len4; _n++) {
-              param = _ref11[_n];
-              this.addSocketAndMark(param, depth + 1, 0, indentDepth, NO);
-            }
-            return this.mark(node.body, depth + 1, 0, null, indentDepth);
-          case 'Assign':
-            this.addBlock(node, depth, precedence, 'command', wrappingParen, MOSTLY_BLOCK);
-            this.addSocketAndMark(node.variable, depth + 1, 0, indentDepth, function(block) {
-              return block.nodeType === 'Value';
-            });
-            return this.addSocketAndMark(node.value, depth + 1, 0, indentDepth);
-          case 'For':
-            this.addBlock(node, depth, precedence, 'control', wrappingParen, MOSTLY_BLOCK);
-            _ref12 = ['source', 'from', 'guard', 'step'];
-            for (_o = 0, _len5 = _ref12.length; _o < _len5; _o++) {
-              childName = _ref12[_o];
-              if (node[childName] != null) {
-                this.addSocketAndMark(node[childName], depth + 1, 0, indentDepth);
-              }
-            }
-            _ref13 = ['index', 'name'];
-            for (_p = 0, _len6 = _ref13.length; _p < _len6; _p++) {
-              childName = _ref13[_p];
-              if (node[childName] != null) {
-                this.addSocketAndMark(node[childName], depth + 1, 0, indentDepth, NO);
-              }
-            }
-            return this.mark(node.body, depth + 1, 0, null, indentDepth);
-          case 'Range':
-            this.addBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
-            this.addSocketAndMark(node.from, depth, 0, indentDepth);
-            return this.addSocketAndMark(node.to, depth, 0, indentDepth);
-          case 'If':
-            this.addBlock(node, depth, precedence, 'control', wrappingParen, MOSTLY_BLOCK);
-            /*
-            bounds = @getBounds node
-            if @lines[bounds.start.line].indexOf('unless') >= 0 and
-                @locationsAreIdentical(bounds.start, @getBounds(node.condition).start) and
-                node.condition.nodeType() is 'Op'
-            
-              @addSocketAndMark node.condition.first, depth + 1, 0, indentDepth
-            else
-            */
-
-            this.addSocketAndMark(node.rawCondition, depth + 1, 0, indentDepth);
-            this.mark(node.body, depth + 1, 0, null, indentDepth);
-            if (node.elseBody != null) {
-              this.flagLineAsMarked(node.elseToken.first_line);
-              return this.mark(node.elseBody, depth + 1, 0, null, indentDepth);
-            }
-            break;
-          case 'Arr':
-            this.addBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
-            _ref14 = node.objects;
-            _results3 = [];
-            for (_q = 0, _len7 = _ref14.length; _q < _len7; _q++) {
-              object = _ref14[_q];
-              _results3.push(this.addSocketAndMark(object, depth + 1, 0, indentDepth));
-            }
-            return _results3;
-            break;
-          case 'Return':
-            this.addBlock(node, depth, precedence, 'return', wrappingParen, BLOCK_ONLY);
-            if (node.expression != null) {
-              return this.addSocketAndMark(node.expression, depth + 1, 0, indentDepth);
-            }
-            break;
-          case 'While':
-            this.addBlock(node, depth, precedence, 'control', wrappingParen, MOSTLY_BLOCK);
-            this.addSocketAndMark(node.rawCondition, depth + 1, 0, indentDepth);
-            if (node.guard != null) {
-              this.addSocketAndMark(node.guard, depth + 1, 0, indentDepth);
-            }
-            return this.mark(node.body, depth + 1, 0, null, indentDepth);
-          case 'Switch':
-            this.addBlock(node, depth, 0, 'control', wrappingParen, MOSTLY_BLOCK);
-            if (node.subject != null) {
-              this.addSocketAndMark(node.subject, depth + 1, 0, indentDepth);
-            }
-            _ref15 = node.cases;
-            for (_r = 0, _len8 = _ref15.length; _r < _len8; _r++) {
-              switchCase = _ref15[_r];
-              if (switchCase[0].constructor === Array) {
-                _ref16 = switchCase[0];
-                for (_s = 0, _len9 = _ref16.length; _s < _len9; _s++) {
-                  condition = _ref16[_s];
-                  this.addSocketAndMark(condition, depth + 1, 0, indentDepth);
-                }
-              } else {
-                this.addSocketAndMark(switchCase[0], depth + 1, 0, indentDepth);
-              }
-              this.mark(switchCase[1], depth + 1, 0, null, indentDepth);
-            }
-            if (node.otherwise != null) {
-              return this.mark(node.otherwise, depth + 1, 0, null, indentDepth);
-            }
-            break;
-          case 'Class':
-            this.addBlock(node, depth, 0, 'control', wrappingParen, ANY_DROP);
-            if (node.variable != null) {
-              this.addSocketAndMark(node.variable, depth + 1, 0, indentDepth, NO);
-            }
-            if (node.parent != null) {
-              this.addSocketAndMark(node.parent, depth + 1, 0, indentDepth);
-            }
-            if (node.body != null) {
-              return this.mark(node.body, depth + 1, 0, null, indentDepth);
-            }
-            break;
-          case 'Obj':
-            this.addBlock(node, depth, 0, 'value', wrappingParen, VALUE_ONLY);
-            _ref17 = node.properties;
-            _results4 = [];
-            for (_t = 0, _len10 = _ref17.length; _t < _len10; _t++) {
-              property = _ref17[_t];
-              if (property.nodeType() === 'Assign') {
-                this.addSocketAndMark(property.variable, depth + 1, 0, indentDepth, NO);
-                _results4.push(this.addSocketAndMark(property.value, depth + 1, 0, indentDepth));
-              } else {
-                _results4.push(void 0);
-              }
-            }
-            return _results4;
-        }
-      };
-
-      CoffeeScriptTranspiler.prototype.transpile = function() {
-        var node, nodes, _i, _len;
-        nodes = CoffeeScript.nodes(this.text).expressions;
-        for (_i = 0, _len = nodes.length; _i < _len; _i++) {
-          node = nodes[_i];
-          this.mark(node, 3, 0, null, 0);
-        }
-        this.wrapSemicolons(nodes, 0);
-        return this.markup;
-      };
-
       return CoffeeScriptTranspiler;
 
     })();
-    coffeeScriptParser = new parser.Parser(function(text) {
-      var transpiler;
-      transpiler = new CoffeeScriptTranspiler(text);
-      return transpiler.transpile();
+    coffeeScriptParser = new parser.Parser(function(originalText) {
+      var e, firstError, lines, retries, text, tokens, transpiler;
+      text = originalText;
+      lines = text.split('\n');
+      retries = Math.max(1, Math.min(5, Math.ceil(lines.length / 2)));
+      firstError = null;
+      while (true) {
+        try {
+          transpiler = new CoffeeScriptTranspiler(text);
+          tokens = transpiler.transpile();
+          return [tokens, text];
+        } catch (_error) {
+          e = _error;
+          if (!firstError) {
+            firstError = e;
+          }
+          if (retries > 0 && fixCoffeeScriptError(lines, e)) {
+            retries -= 1;
+            text = lines.join('\n');
+          } else {
+            throw firstError;
+          }
+        }
+      }
     });
+    fixCoffeeScriptError = function(lines, e) {
+      if (/unexpected/.test(e.message)) {
+        return backTickLine(lines, e.location.first_line);
+      }
+    };
+    backTickLine = function(lines, n) {
+      if (n < 0 || n >= lines.length) {
+        return false;
+      }
+      if (/`/.test(lines[n]) || /^\s*$/.test(lines[n])) {
+        return false;
+      }
+      lines[n] = lines[n].replace(/^(\s*)(\S.*\S|\S)(\s*)$/, '$1`#$2`$3');
+      return true;
+    };
+    addEmptyBackTickLineAfter = function(lines, n) {
+      var leading;
+      if (n < 0 || n >= lines.length) {
+        return false;
+      }
+      if (n + 1 < lines.length && /^\s*``$/.test(lines[n + 1])) {
+        return false;
+      }
+      leading = /^\s*/.exec(lines[n]);
+      if (!leading || leading[0].length >= lines[n].length) {
+        return false;
+      }
+      return lines.splice(n + 1, 0, leading[0] + '``');
+    };
     exports.parse = function(text, opts) {
       if (opts == null) {
         opts = {
@@ -5981,9 +6044,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             _this.redrawMain();
             _this.reparseHandwrittenBlocks();
             return _this.newHandwrittenSocket = newSocket;
-          } else if (_this.textFocus != null) {
+          } else if ((_this.textFocus != null) && !_this.shiftKeyPressed) {
             _this.setTextInputFocus(null);
             return _this.redrawMain();
+          } else {
+            return true;
           }
         },
         on_keyup: function() {
@@ -6954,7 +7019,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.mainViewOrChildrenContains = function(model, point) {
       var childObj, modelView, _i, _len, _ref;
-      modelView = this.view.getViewNodeFor(modelView);
+      modelView = this.view.getViewNodeFor(model);
       if (modelView.path.contains(point)) {
         return true;
       }
