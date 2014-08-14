@@ -19,6 +19,7 @@ module.exports = (grunt) ->
           'js/coffee.js': ['src/coffee.coffee']
           'js/parser.js': ['src/parser.coffee']
           'js/main.js': ['src/main.coffee']
+          'js/helper.js': ['src/helper.coffee']
           'test/js/parserTests.js': ['test/coffee/parserTests.coffee']
 
           'test/js/tests.js': ['test/coffee/tests.coffee']
@@ -57,6 +58,7 @@ module.exports = (grunt) ->
             'ice-draw': 'draw'
             'ice-coffee': 'coffee'
             'ice-parser': 'parser'
+            'ice-helper': 'helper'
             'ice': 'main'
           name: 'ice'
           optimize: 'none'

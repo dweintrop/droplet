@@ -3,7 +3,7 @@
 # Copyright (c) 2014 Anthony Bau
 # MIT License.
 
-define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model, view) ->
+define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helper, coffee, draw, model, view) ->
   # ## Magic constants
   PALETTE_TOP_MARGIN = 5
   PALETTE_MARGIN = 5
@@ -11,15 +11,15 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   PALETTE_LEFT_MARGIN = 5
   DEFAULT_INDENT_DEPTH = '  '
   ANIMATION_FRAME_RATE = 60
-  TOP_TAB_HEIGHT = 20
+  TOP_TAB_HEIGHT = 10
   DISCOURAGE_DROP_TIMEOUT = 1000
   MAX_DROP_DISTANCE = 100
 
-  ANY_DROP = 0
-  BLOCK_ONLY = 1
-  MOSTLY_BLOCK = 2
-  MOSTLY_VALUE = 3
-  VALUE_ONLY = 4
+  ANY_DROP = helper.ANY_DROP
+  BLOCK_ONLY = helper.BLOCK_ONLY
+  MOSTLY_BLOCK = helper.MOSTLY_BLOCK
+  MOSTLY_VALUE = helper.MOSTLY_VALUE
+  VALUE_ONLY = helper.VALUE_ONLY
 
   exports = {}
 
@@ -105,6 +105,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # ## The Editor Class
   exports.Editor = class Editor
     constructor: (@wrapperElement, @paletteGroups) ->
+      @draw = new draw.Draw()
+
       # ## DOM Population
       # This stage of ICE Editor construction populates the given wrapper
       # element with all the necessary ICE editor components.
@@ -164,10 +166,12 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       @wrapperElement.appendChild @paletteElement
 
+      do @draw.refreshFontCapital
+
       @standardViewSettings =
         padding: 5
         indentWidth: 20
-        textHeight: getFontHeight 'Courier New', 15
+        textHeight: helper.getFontHeight 'Courier New', 15
         indentTongueHeight: 20
         tabOffset: 10
         tabWidth: 15
@@ -180,6 +184,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
         highlightAreaHeight: 10
         shadowBlur: 5
         ctx: @mainCtx
+        draw: @draw
 
       # Instantiate an ICE editor view
       @view = new view.View extend_ @standardViewSettings, respectEphemeral: true
@@ -257,7 +262,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       @resize()
 
-      # Now that we've populated everything, immediately redraw.
+      # Now that we've populated everything, immediately re@draw.
       @redrawMain(); @redrawPalette()
 
     # ## Foundational Resize
@@ -333,34 +338,35 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @mainCtx.clearRect @scrollOffsets.main.x, @scrollOffsets.main.y, @mainCanvas.width, @mainCanvas.height
 
   hook 'resize', 0, ->
-    @topNubbyPath = new draw.Path()
+    @topNubbyPath = new @draw.Path()
 
     @topNubbyPath.bevel = true
 
-    @topNubbyPath.push new draw.Point @mainCanvas.width, 0
-    @topNubbyPath.push new draw.Point @mainCanvas.width, TOP_TAB_HEIGHT
+    @topNubbyPath.push new @draw.Point @mainCanvas.width, 0
+    @topNubbyPath.push new @draw.Point @mainCanvas.width, TOP_TAB_HEIGHT
 
-    @topNubbyPath.push new draw.Point @view.opts.tabOffset + @view.opts.tabWidth, TOP_TAB_HEIGHT
-    @topNubbyPath.push new draw.Point @view.opts.tabOffset + @view.opts.tabWidth * (1 - @view.opts.tabSideWidth),
+    @topNubbyPath.push new @draw.Point @view.opts.tabOffset + @view.opts.tabWidth, TOP_TAB_HEIGHT
+    @topNubbyPath.push new @draw.Point @view.opts.tabOffset + @view.opts.tabWidth * (1 - @view.opts.tabSideWidth),
         @view.opts.tabHeight + TOP_TAB_HEIGHT
-    @topNubbyPath.push new draw.Point @view.opts.tabOffset + @view.opts.tabWidth * @view.opts.tabSideWidth,
+    @topNubbyPath.push new @draw.Point @view.opts.tabOffset + @view.opts.tabWidth * @view.opts.tabSideWidth,
         @view.opts.tabHeight + TOP_TAB_HEIGHT
-    @topNubbyPath.push new draw.Point @view.opts.tabOffset, TOP_TAB_HEIGHT
+    @topNubbyPath.push new @draw.Point @view.opts.tabOffset, TOP_TAB_HEIGHT
 
-    @topNubbyPath.push new draw.Point 0, TOP_TAB_HEIGHT
-    @topNubbyPath.push new draw.Point 0, 0
+    @topNubbyPath.push new @draw.Point 0, TOP_TAB_HEIGHT
+    @topNubbyPath.push new @draw.Point 0, 0
 
     @topNubbyPath.style.fillColor = '#EBEBEB'
 
 
   Editor::redrawMain = (opts = {}) ->
     unless @currentlyAnimating
+
       # Set our draw tool's font size
       # to the font size we want
-      draw._setGlobalFontSize @fontSize
+      @draw.setGlobalFontSize @fontSize
 
       # Supply our main canvas for measuring
-      draw._setCTX @mainCtx
+      @draw.setCtx @mainCtx
 
       # Clear the main canvas
       @clearMain(opts)
@@ -373,7 +379,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       # Draw the new tree on the main context
       layoutResult = @view.getViewNodeFor(@tree).layout 0, TOP_TAB_HEIGHT
-      @view.getViewNodeFor(@tree).draw @mainCtx, opts.boundingRectangle ? new draw.Rectangle(
+      @view.getViewNodeFor(@tree).draw @mainCtx, opts.boundingRectangle ? new @draw.Rectangle(
         @scrollOffsets.main.x,
         @scrollOffsets.main.y,
         @mainCanvas.width,
@@ -392,6 +398,19 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       for binding in editorBindings.redraw_main
         binding.call this, layoutResult
+
+      if @changeEventVersion isnt @tree.version
+        @changeEventVersion = @tree.version
+
+        # Update the ace editor value to match,
+        # but don't trigger a resize event.
+        @suppressChangeEvent = true; oldScroll = @aceEditor.session.getScrollTop()
+        @aceEditor.setValue @getValue(), -1
+        @suppressChangeEvent = false; @aceEditor.session.setScrollTop oldScroll
+
+        @fireEvent 'change', []
+
+      return null
 
   Editor::redrawHighlights = ->
     # Draw highlights around marked lines
@@ -428,9 +447,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @clearPalette()
 
       # Supply our palette canvas for text measuring
-      draw._setCTX @paletteCtx
+      @draw.setCtx @paletteCtx
 
-      draw._setGlobalFontSize @fontSize
+      @draw.setGlobalFontSize @fontSize
 
       # We will construct a vertical layout
       # with padding for the palette blocks.
@@ -438,7 +457,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       # of the last bottom edge of a palette block.
       lastBottomEdge = PALETTE_TOP_MARGIN
 
-      boundingRect = new draw.Rectangle(
+      boundingRect = new @draw.Rectangle(
         @scrollOffsets.palette.x,
         @scrollOffsets.palette.y,
         @paletteCanvas.width,
@@ -476,24 +495,24 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     # The first is Chrome and Safari.
     if event.offsetX?
       # We want this point relative to the tracker element.
-      point = new draw.Point event.offsetX, event.offsetY
+      point = new @draw.Point event.offsetX, event.offsetY
 
     # The second is Firefox.
     else
-      point = new draw.Point event.layerX, event.layerY
+      point = new @draw.Point event.layerX, event.layerY
 
     # Now, we want to get this point relative to the tracker element,
     # so we need to bubble up its parents until we reach it.
     offsetPoint = @trackerOffset event.target
 
     # Now we're done.
-    return new draw.Point(
+    return new @draw.Point(
       point.x + offsetPoint.x,
       point.y + offsetPoint.y
     )
 
   Editor::absoluteOffset = (el) ->
-    point = new draw.Point el.offsetLeft, el.offsetTop
+    point = new @draw.Point el.offsetLeft, el.offsetTop
     el = el.offsetParent
 
     until el is document.body or not el?
@@ -530,25 +549,25 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       el = el.offsetParent
 
-    return new draw.Point x, y
+    return new @draw.Point x, y
 
   # ### Conversion functions
   # Convert a point relative to the tracker into
   # a point relative to one of the two canvases.
   Editor::trackerPointToMain = (point) ->
-    new draw.Point(
+    new @draw.Point(
       point.x - @trackerOffset(@mainCanvas).x + @scrollOffsets.main.x
       point.y - @trackerOffset(@mainCanvas).y + @scrollOffsets.main.y
     )
 
   Editor::trackerPointToPalette = (point) ->
     if not @paletteCanvas.offsetParent?
-      return new draw.Point(
+      return new @draw.Point(
         NaN,
         NaN
       )
 
-    new draw.Point(
+    new @draw.Point(
       point.x - @trackerOffset(@paletteCanvas).x + @scrollOffsets.palette.x,
       point.y - @trackerOffset(@paletteCanvas).y + @scrollOffsets.palette.y
     )
@@ -587,6 +606,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # fields a populate time
   hook 'populate', 0, ->
     @undoStack = []
+    @changeEventVersion = 0
 
   # The UndoOperation class is the base
   # class for all undo operations.
@@ -598,15 +618,21 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     undo: (editor) -> editor.tree.start
     redo: (editor) -> editor.tree.start
 
+  Editor::removeBlankLines = ->
+    # If we have blank lines at the end,
+    # get rid of them
+    head = @tree.end.previousVisibleToken()
+    while head?.type is 'newline'
+      next = head.previousVisibleToken()
+      head.remove()
+      head = next
+
   # addMicroUndoOperation pushes
   # the given operation to the undo stack,
   # and might possibly do some bureaucracy in the future.
   Editor::addMicroUndoOperation = (operation) ->
     @undoStack.push operation
-
-    # If someone has bound to mutation via
-    # the public API, fire it.
-    @fireEvent 'change', [operation]
+    @removeBlankLines()
 
   # The undo function pops and undoes
   # operations from the undo stack until
@@ -810,7 +836,6 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
           break
       @dumpNodeForDebug(hitTestResult, line)
 
-
     # If it came back positive,
     # deal with the click.
     if hitTestResult?
@@ -839,6 +864,17 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     if @clickedBlock?
       @clickedBlock = null
       @clickedPoint = null
+
+  Editor::wouldDelete = (position) ->
+
+    mainPoint = @trackerPointToMain position
+    palettePoint = @trackerPointToPalette position
+
+    return not @lastHighlight and not
+        (@mainCanvas.width + @scrollOffsets.main.x > mainPoint.x > @scrollOffsets.main.x and
+         @mainCanvas.height + @scrollOffsets.main.y > mainPoint.y > @scrollOffsets.main.y) or
+        (@paletteCanvas.width + @scrollOffsets.palette.x > palettePoint.x > @scrollOffsets.palette.x and
+        @paletteCanvas.height + @scrollOffsets.palette.y > palettePoint.y > @scrollOffsets.palette.y)
 
   # On mousemove, if there is a clicked block but no drag block,
   # we might want to transition to a dragging the block if the user
@@ -879,10 +915,10 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       draggingBlockView = @dragView.getViewNodeFor @draggingBlock
       draggingBlockView.layout 1, 1
       draggingBlockView.drawShadow @dragCtx, 5, 5
-      draggingBlockView.draw @dragCtx, new draw.Rectangle 0, 0, @dragCanvas.width, @dragCanvas.height
+      draggingBlockView.draw @dragCtx, new @draw.Rectangle 0, 0, @dragCanvas.width, @dragCanvas.height
 
       # Translate it immediately into position
-      position = new draw.Point(
+      position = new @draw.Point(
         point.x + @draggingOffset.x,
         point.y + @draggingOffset.y
       )
@@ -922,6 +958,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       # Now we are done with the "clickedX" suite of stuff.
       @clickedPoint = @clickedBlock = null
 
+      @begunTrash = @wouldDelete position
+
       # Redraw the main canvas
       @redrawMain()
 
@@ -931,7 +969,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   hook 'mousemove', 0, (point, event, state) ->
     if @draggingBlock?
       # Translate the drag canvas into position.
-      position = new draw.Point(
+      position = new @draw.Point(
         point.x + @draggingOffset.x,
         point.y + @draggingOffset.y
       )
@@ -943,27 +981,51 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       best = null; min = Infinity
 
-      # Find the closest droppable block
-      testPoints = @dropPointQuadTree.retrieve {
-        x: mainPoint.x - MAX_DROP_DISTANCE
-        y: mainPoint.y - MAX_DROP_DISTANCE
-        w: MAX_DROP_DISTANCE * 2
-        h: MAX_DROP_DISTANCE * 2
-      }, (point) =>
-        unless point._ice_needs_shift and not @shiftKeyPressed
-          distance = mainPoint.from(point)
-          distance.y *= 2; distance = distance.magnitude()
-          if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE and
-             @view.getViewNodeFor(point._ice_node).highlightArea?
-            best = point._ice_node
-            min = distance
+      # Check to see if the tree is empty;
+      # if it is, drop on the tree always
+      head = @tree.start.next
+      while head.type in ['newline', 'cursor'] or head.type is 'text' and head.value is ''
+        head = head.next
 
-      if best isnt @lastHighlight
-        @clearHighlightCanvas()
+      if head is @tree.end and
+          @mainCanvas.width + @scrollOffsets.main.x > mainPoint.x > @scrollOffsets.main.x and
+          @mainCanvas.height + @scrollOffsets.main.y > mainPoint.y > @scrollOffsets.main.y
+        @view.getViewNodeFor(@tree).highlightArea.draw @highlightCtx
+        @lastHighlight = @tree
 
-        if best? then @view.getViewNodeFor(best).highlightArea.draw @highlightCtx
+      else
+        # Find the closest droppable block
+        testPoints = @dropPointQuadTree.retrieve {
+          x: mainPoint.x - MAX_DROP_DISTANCE
+          y: mainPoint.y - MAX_DROP_DISTANCE
+          w: MAX_DROP_DISTANCE * 2
+          h: MAX_DROP_DISTANCE * 2
+        }, (point) =>
+          unless point._ice_needs_shift and not @shiftKeyPressed
+            distance = mainPoint.from(point)
+            distance.y *= 2; distance = distance.magnitude()
+            if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE and
+               @view.getViewNodeFor(point._ice_node).highlightArea?
+              best = point._ice_node
+              min = distance
 
-        @lastHighlight = best
+        if best isnt @lastHighlight
+          @clearHighlightCanvas()
+
+          if best? then @view.getViewNodeFor(best).highlightArea.draw @highlightCtx
+
+          @lastHighlight = best
+
+      palettePoint = @trackerPointToPalette position
+
+      if @wouldDelete(position)
+        if @begunTrash
+          @dragCanvas.style.opacity = 0.85
+        else
+          @dragCanvas.style.opacity = 0.3
+      else
+        @dragCanvas.style.opacity = 0.85
+        @begunTrash = false
 
   hook 'mouseup', 0, ->
     clearTimeout @discourageDropTimeout; @discourageDropTimeout = null
@@ -1057,9 +1119,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # They mimick block move pick/drop operations
   # except that they also interact with the @floatingBlocks array.
   class ToFloatingOperation extends DropOperation
-    constructor: (block, position) ->
+    constructor: (block, position, editor) ->
       # Copy the position we got
-      @position = new draw.Point position.x, position.y
+      @position = new editor.draw.Point position.x, position.y
 
       # Do all the normal blockMove stuff.
       super block, null
@@ -1075,8 +1137,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       super
 
   class FromFloatingOperation
-    constructor: (record) ->
-      @position = new draw.Point record.position.x, record.position.y
+    constructor: (record, editor) ->
+      @position = new editor.draw.Point record.position.x, record.position.y
       @block = record.block.clone()
 
     undo: (editor) ->
@@ -1102,7 +1164,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       # Before we put this block into our list of floating blocks,
       # we need to figure out where on the main canvas
       # we are going to render it.
-      trackPoint = new draw.Point(
+      trackPoint = new @draw.Point(
         point.x + @draggingOffset.x,
         point.y + @draggingOffset.y
       )
@@ -1142,8 +1204,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       # Add the undo operation associated
       # with creating this floating block
-      @addMicroUndoOperation new ToFloatingOperation @draggingBlock, renderPoint
-
+      @addMicroUndoOperation new ToFloatingOperation @draggingBlock, renderPoint, this
 
       # Add this block to our list of floating blocks
       @floatingBlocks.push new FloatingBlockRecord(
@@ -1186,7 +1247,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
           unless state.addedCapturePoint
             @addMicroUndoOperation 'CAPTURE_POINT'
             state.addedCapturePoint = true
-          @addMicroUndoOperation new FromFloatingOperation record
+          @addMicroUndoOperation new FromFloatingOperation record, this
 
           @floatingBlocks.splice i, 1
 
@@ -1197,7 +1258,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # On redraw, we draw all the floating blocks
   # in their proper positions.
   hook 'redraw_main', 7, ->
-    boundingRect = new draw.Rectangle(
+    boundingRect = new @draw.Rectangle(
       @scrollOffsets.main.x,
       @scrollOffsets.main.y,
       @mainCanvas.width,
@@ -1391,6 +1452,13 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     @oldFocusValue = null
 
+    # Prevent kids from deleting a necessary quote accidentally
+    @hiddenInput.addEventListener 'keydown', (event) =>
+      if event.keyCode is 8 and @hiddenInput.value.length > 1 and
+          @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
+          @hiddenInput.value[0] in ['\'', '\"'] and @hiddenInput.selectionEnd is 1
+        event.preventDefault()
+
     # The hidden input should be set up
     # to mirror the text to which it is associated.
     for event in ['input', 'keyup', 'keydown', 'select']
@@ -1451,12 +1519,14 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       # If the layout has not changed enough to affect
       # anything non-local, only redraw locally.
       if deepEquals newp, oldp
-        rect = new draw.NoRectangle()
+        rect = new @draw.NoRectangle()
+
         rect.unite treeView.bounds[line - 1] if line > 0
         rect.unite treeView.bounds[line]
         rect.unite treeView.bounds[line + 1] if line + 1 < treeView.bounds.length
 
-        rect.width = @mainCanvas.width
+        rect.width = Math.max rect.width, @mainCanvas.width
+
 
         @redrawMain
           boundingRectangle: rect
@@ -1467,9 +1537,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     else
       @redrawMain()
 
-    @redrawTextHighlights()
-    
-  Editor::redrawTextHighlights = ->
+    @redrawTextHighlights true
+
+  Editor::redrawTextHighlights = (scrollIntoView = false) ->
     textFocusView = @view.getViewNodeFor @textFocus
 
     # Determine the coordinate positions
@@ -1516,6 +1586,11 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
           endPosition - textFocusView.bounds[endRow].x,
           @view.opts.textHeight
 
+    if scrollIntoView and endPosition > @scrollOffsets.main.x + @mainCanvas.width
+      @mainScroller.scrollLeft = endPosition - @mainCanvas.width + @view.opts.padding
+
+  escapeString = (str) ->
+    str[0] + str[1...-1].replace(/(\'|\"|\n)/g, '\\$1') + str[str.length - 1]
 
   # Convenince function for setting the text input
   Editor::setTextInputFocus = (focus, selectionStart = 0, selectionEnd = 0) ->
@@ -1538,18 +1613,27 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       # The second of these is a reparse attempt.
       # If we can, try to reparse the focus
       # value.
+      newParse = null
+      string = @textFocus.stringify().trim()
       try
-        newParse = coffee.parse(unparsedValue = @textFocus.stringify(), wrapAtRoot: false)
+        newParse = coffee.parse(unparsedValue = string, wrapAtRoot: false)
+      catch
+        if string[0] is string[string.length - 1] and string[0] in ['"', '\'']
+          try
+            string = escapeString string
+            newParse = coffee.parse(unparsedValue = string, wrapAtRoot: false)
+            @populateSocket @textFocus, string
 
-        if newParse.start.next.type is 'blockStart' and newParse.start.next.container.end.next is newParse.end
-          # Empty the socket
-          @textFocus.start.append @textFocus.end
+      if newParse? and newParse.start.next.type is 'blockStart' and
+          newParse.start.next.container.end.next is newParse.end
+        # Empty the socket
+        @textFocus.start.append @textFocus.end
 
-          # Splice the other in
-          newParse.start.next.container.spliceIn @textFocus.start
+        # Splice the other in
+        newParse.start.next.container.spliceIn @textFocus.start
 
-          @addMicroUndoOperation new TextReparseOperation @textFocus, unparsedValue
-          shouldPop = true
+        @addMicroUndoOperation new TextReparseOperation @textFocus, unparsedValue
+        shouldPop = true
 
       try
         # TODO make 'reparsable' property, bubble up until then
@@ -1620,12 +1704,17 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     # Focus the hidden input.
     setTimeout (=>
-      @hiddenInput.focus()
-      @hiddenInput.setSelectionRange 0, @hiddenInput.value.length
-      @redrawTextInput()
+      if @textFocus?
+        @hiddenInput.focus()
+        if @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
+           @hiddenInput.value[0] in ['\'', '"']
+          @hiddenInput.setSelectionRange 1, @hiddenInput.value.length - 1
+        else
+          @hiddenInput.setSelectionRange 0, @hiddenInput.value.length
+        @redrawTextInput()
     ), 0
 
-    # Redraw.
+    # Re@draw.
     @redrawMain(); @redrawTextInput()
 
   Editor::populateSocket = (socket, string) ->
@@ -1905,12 +1994,12 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @clearLassoSelectCanvas()
 
       # (draw the lasso rectangle)
-      topLeftCorner = new draw.Point(
+      topLeftCorner = new @draw.Point(
         Math.min(@lassoSelectAnchor.x, mainPoint.x) - @scrollOffsets.main.x,
         Math.min(@lassoSelectAnchor.y, mainPoint.y) - @scrollOffsets.main.y
       )
 
-      size = new draw.Size(
+      size = new @draw.Size(
         Math.abs(@lassoSelectAnchor.x - mainPoint.x),
         Math.abs(@lassoSelectAnchor.y - mainPoint.y)
       )
@@ -1956,7 +2045,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   hook 'mouseup', 0, (point, event, state) ->
     if @lassoSelectAnchor?
       mainPoint = @trackerPointToMain point
-      lassoRectangle = new draw.Rectangle(
+      lassoRectangle = new @draw.Rectangle(
           Math.min(@lassoSelectAnchor.x, mainPoint.x),
           Math.min(@lassoSelectAnchor.y, mainPoint.y),
           Math.abs(@lassoSelectAnchor.x - mainPoint.x),
@@ -2087,9 +2176,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       if @cursor.nextVisibleToken()?.type is 'indentEnd' and
          @cursor.prev?.prev.type isnt 'indentStart' or
          @cursor.next is @tree.end
-        return new draw.Point bound.x, bound.bottom()
+        return new @draw.Point bound.x, bound.bottom()
       else
-        return new draw.Point bound.x, bound.y
+        return new @draw.Point bound.x, bound.y
 
   Editor::scrollCursorIntoPosition = ->
     axis = @determineCursorPosition().y
@@ -2098,6 +2187,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @mainScroller.scrollTop = axis
     else if axis - @scrollOffsets.main.y > @mainCanvas.height
       @mainScroller.scrollTop = axis - @mainCanvas.height
+
+    @mainScroller.scrollLeft = 0
 
   # Pressing the up-arrow moves the cursor up.
   hook 'key.up', 0, ->
@@ -2223,35 +2314,45 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       on_keydown: => @shiftKeyPressed = true
       on_keyup: => @shiftKeyPressed = false
 
-  hook 'key.enter', 0, ->
-    unless @textFocus? or @shiftKeyPressed
-      @setTextInputFocus null
+    @keyListener.register_combo
+      keys: 'enter'
+      on_keydown: =>
+        unless @textFocus? or @shiftKeyPressed
+          @setTextInputFocus null
 
-      # Construct the block; flag the socket as handwritten
-      newBlock = new model.Block(); newSocket = new model.Socket -Infinity
-      newSocket.spliceIn newBlock.start
-      newSocket.handwritten = true
+          # Construct the block; flag the socket as handwritten
+          newBlock = new model.Block(); newSocket = new model.Socket -Infinity
+          newSocket.spliceIn newBlock.start
+          newSocket.handwritten = true
 
-      # Add it io our list of handwritten blocks
-      @handwrittenBlocks.push newBlock
+          # Add it io our list of handwritten blocks
+          @handwrittenBlocks.push newBlock
 
-      # Seek a place near the cursor we can actually
-      # put a block.
-      head = @cursor.prev
-      while head.type in ['newline', 'cursor', 'segmentStart', 'segmentEnd'] and head isnt @tree.start
-        head = head.prev
+          # Seek a place near the cursor we can actually
+          # put a block.
+          head = @cursor.prev
+          while head.type in ['newline', 'cursor', 'segmentStart', 'segmentEnd'] and head isnt @tree.start
+            head = head.prev
 
-      # Log the undo operation for this
-      @addMicroUndoOperation 'CAPTURE_POINT'
-      @addMicroUndoOperation new DropOperation newBlock, head
+          console.log 'found', head
 
-      newBlock.moveTo head #MUTATION
+          # Log the undo operation for this
+          @addMicroUndoOperation 'CAPTURE_POINT'
+          @addMicroUndoOperation new DropOperation newBlock, head
 
-      @redrawMain()
-      @reparseHandwrittenBlocks()
-      @setTextInputFocus newSocket
+          newBlock.moveTo head #MUTATION
 
-    else if @textFocus? then @setTextInputFocus null; @redrawMain()
+          @redrawMain()
+          @reparseHandwrittenBlocks()
+
+          @newHandwrittenSocket = newSocket
+
+        else if @textFocus? then @setTextInputFocus null; @redrawMain()
+
+      on_keyup: =>
+        if @newHandwrittenSocket?
+          @setTextInputFocus @newHandwrittenSocket
+          @newHandwrittenSocket = null
 
   containsCursor = (block) ->
     head = block.start
@@ -2431,6 +2532,11 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # ANIMATION AND ACE EDITOR SUPPORT
   # ================================
 
+  Editor::copyAceEditor = ->
+    @setFontSize_raw @aceEditor.getFontSize()
+    @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
+    @resize()
+
   hook 'populate', 0, ->
     @aceElement = document.createElement 'div'
     @aceElement.className = 'ice-ace'
@@ -2445,9 +2551,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @aceEditor.getSession().setTabSize 2
 
     @aceEditor.on 'change', =>
-      @setFontSize_raw @aceEditor.getFontSize()
-      @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
-      @resize()
+      if @currentlyUsingBlogs and not @suppressChangeEvent
+        @copyAceEditor()
 
     @currentlyUsingBlocks = true
     @currentlyAnimating = false
@@ -2515,7 +2620,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
           corner.x -= @scrollOffsets.main.x
           corner.y -= @scrollOffsets.main.y
 
-          translationVectors.push (new draw.Point(state.x, state.y)).from(corner)
+          translationVectors.push (new @draw.Point(state.x, state.y)).from(corner)
           textElements.push @view.getViewNodeFor head
 
           state.x += @mainCtx.measureText(head.value).width
@@ -2699,7 +2804,10 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
   Editor::performFreezeAnimation = (fadeTime = 500, translateTime = 500, cb = ->)->
     if not @currentlyUsingBlocks and not @currentlyAnimating
+      @copyAceEditor()
+
       @fireEvent 'statechange', [true]
+
       setValueResult = @setValue_raw @aceEditor.getValue()
 
       unless setValueResult.success
@@ -2803,7 +2911,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
             el.style.transition = "opacity #{fadeTime}ms linear"
             el.style.opacity = 1
         ), translateTime
-        
+
         @iceElement.style.transition =
           @paletteWrapper.style.transition = "left #{translateTime}ms"
 
@@ -2841,8 +2949,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
   hook 'populate', 0.1, ->
     @scrollOffsets = {
-      main: new draw.Point 0, 0
-      palette: new draw.Point 0, 0
+      main: new @draw.Point 0, 0
+      palette: new @draw.Point 0, 0
     }
 
     @mainScroller = document.createElement 'div'
@@ -2904,7 +3012,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     @mainScrollerStuffing.style.height = "#{bounds.bottom()}px"
 
   hook 'redraw_palette', 0, ->
-    bounds = new draw.NoRectangle()
+    bounds = new @draw.NoRectangle()
     for block in @currentPaletteBlocks
       bounds.unite @view.getViewNodeFor(block).getBounds()
 
@@ -2917,8 +3025,8 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # ================================
   hook 'populate', 0, ->
     @fontSize = 15
-    @fontAscent = 1
     @fontFamily = 'Courier New'
+    @fontAscent = helper.fontMetrics(@fontFamily, @fontSize).prettytop
 
   Editor::setFontSize_raw = (fontSize) ->
     unless @fontSize is fontSize
@@ -2928,9 +3036,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @gutter.style.fontSize = "#{fontSize}px"
 
       @view.opts.textHeight =
-        @dragView.opts.textHeight = getFontHeight @fontFamily, @fontSize
+        @dragView.opts.textHeight = helper.getFontHeight @fontFamily, @fontSize
 
-      @fontAscent = fontMetrics(@fontFamily, @fontSize).ascent
+      @fontAscent = helper.fontMetrics(@fontFamily, @fontSize).prettytop
 
       @view.clearCache()
 
@@ -2941,12 +3049,12 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
       @redrawMain(); @redrawPalette()
 
   Editor::setFontFamily = (fontFamily) ->
-    draw._setGlobalFontFamily fontFamily
+    @draw.setGlobalFontFamily fontFamily
 
     @fontFamily = fontFamily
 
-    @view.opts.textHeight = getFontHeight @fontFamily, @fontSize
-    @fontAscent = fontMetrics(@fontFamily, @fontSize).ascent
+    @view.opts.textHeight = helper.getFontHeight @fontFamily, @fontSize
+    @fontAscent = helper.fontMetrics(@fontFamily, @fontSize).prettytop
 
     @view.clearCache(); @dragView.clearCache()
     @gutter.style.fontFamily = fontFamily
@@ -3015,7 +3123,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     path.style.fillColor = null
     path.style.strokeColor = style.color
-    path.style.lineWidth = 2
+    path.style.lineWidth = 3
     path.noclip = true; path.bevel = false
 
     return path
@@ -3100,6 +3208,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     @tree = newParse; @gutterVersion = -1
     @tree.start.insert @cursor
+    @removeBlankLines()
     @redrawMain()
 
     return success: true
@@ -3115,7 +3224,17 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     @setValue_raw value
 
-  Editor::getValue = -> if @currentlyUsingBlocks then @tree.stringify() else @aceEditor.getValue()
+  Editor::addEmptyLine = (str) ->
+    if str.length is 0 or str[str.length - 1] is '\n'
+      return str
+    else
+      return str + '\n'
+
+  Editor::getValue = ->
+    if @currentlyUsingBlocks
+      return @addEmptyLine @tree.stringify()
+    else
+      @aceEditor.getValue()
 
   # PUBLIC EVENT BINDING HOOKS
   # ===============================
@@ -3220,7 +3339,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   TOUCH_SELECTION_TIMEOUT = 1000
 
   Editor::touchEventToPoint = (event, index) ->
-    absolutePoint = new draw.Point(
+    absolutePoint = new @draw.Point(
       event.changedTouches[index].pageX,
       event.changedTouches[index].pageY
     )
@@ -3240,7 +3359,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
   # When users drag with multiple fingers, we emulate scrolling.
   # Otherwise, we emulate mousedown/mouseup
   hook 'populate', 0, ->
-    @touchScrollAnchor = new draw.Point 0, 0
+    @touchScrollAnchor = new @draw.Point 0, 0
     @lassoSelectStartTimeout = null
 
     @wrapperElement.addEventListener 'touchstart', (event) =>
@@ -3350,7 +3469,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
   hook 'mouseup', 0.5, (point, event) ->
     if @draggingBlock?
-      trackPoint = new draw.Point(
+      trackPoint = new @draw.Point(
         point.x + @draggingOffset.x,
         point.y + @draggingOffset.y
       )
@@ -3379,7 +3498,7 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
     @lineNumberTags = {}
 
-    @mainScrollerStuffing.appendChild @gutter
+    @iceElement.appendChild @gutter
 
   hook 'resize', 0, ->
     @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
@@ -3397,10 +3516,9 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
 
       @lineNumberTags[line] = lineDiv
 
-    lineDiv.style.top =  treeView.bounds[line].y + 'px'
+    lineDiv.style.top = "#{treeView.bounds[line].y + treeView.distanceToBase[line].above - @view.opts.textHeight - @fontAscent - @scrollOffsets.main.y}px"
     lineDiv.style.height =  treeView.bounds[line].height + 'px'
     lineDiv.style.fontSize = @fontSize + 'px'
-    lineDiv.style.paddingTop = (treeView.distanceToBase[line].above - @view.opts.textHeight - @fontAscent) + 'px'
 
     @lineNumberWrapper.appendChild lineDiv
 
@@ -3440,92 +3558,27 @@ define ['ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (coffee, draw, model
     if changedBox
       @gutter.style.height = "#{Math.max @mainScroller.offsetHeight, treeView.totalBounds.height}px"
 
-  ###
-  getFontHeight = (family, size) ->
-    testElement = document.createElement 'span'
-    testElement.innerHTML = 'Hg'
+  # OVRFLOW BIT
+  # ================================
 
-    testPartner = document.createElement 'div'
-    testPartner.style.display = 'inline-block'; testPartner.style.background = '#000'
-    testPartner.style.width = '1px'; testPartner.style.height = '1px'
+  Editor::overflowsX = ->
+    @documentDimensions().width > @viewportDimensions().width
 
-    testWrapper = document.createElement 'div'
-    testWrapper.style.position = 'absolute'
-    testWrapper.style.left = testWrapper.style.top = '-9999px'
-    testWrapper.style.font = "#{size}px #{family}"
+  Editor::overflowsY = ->
+    @documentDimensions().height > @viewportDimensions().height
 
-    testWrapper.appendChild testElement; testWrapper.appendChild testPartner
+  Editor::documentDimensions = ->
+    bounds = @view.getViewNodeFor(@tree).totalBounds
+    return {
+      width: bounds.width
+      height: bounds.height
+    }
 
-    document.body.appendChild testWrapper
-
-    testPartner.style.verticalAlign = 'text-top'
-    offsetTop = testPartner.offsetTop - testElement.offsetTop
-
-    testPartner.style.verticalAlign = 'text-bottom'
-    offsetBottom = testPartner.offsetTop - testElement.offsetTop
-
-    #document.body.removeChild testWrapper
-
-    return offsetBottom - offsetTop
-  ###
-
-  fontMetricsCache = {}
-  fontMetrics = (fontFamily, fontHeight) ->
-    fontStyle = "#{fontHeight}px #{fontFamily}"
-    result = fontMetricsCache[fontStyle]
-
-    textTopAndBottom = (testText) ->
-      ctx.fillStyle = 'black'
-      ctx.fillRect(0, 0, width, height)
-      ctx.textBaseline = 'top'
-      ctx.fillStyle = 'white'
-      ctx.fillText(testText, 0, 0)
-      right = Math.ceil(ctx.measureText(testText).width)
-      pixels = ctx.getImageData(0, 0, width, height).data
-      first = -1
-      last = height
-      for row in [0...height]
-        for col in [1...right]
-          index = (row * width + col) * 4
-          if pixels[index] != 0
-            if first < 0
-              first = row
-            break
-        if first >= 0 and col >= right
-          last = row
-          break
-      return {top: first, bottom: last}
-
-    if not result
-      canvas = document.createElement 'canvas'
-      ctx = canvas.getContext '2d'
-      ctx.font = fontStyle
-      metrics = ctx.measureText 'Hg'
-      if canvas.height < fontHeight * 2 or
-         canvas.width < metrics.width
-        canvas.width = Math.ceil(metrics.width)
-        canvas.height = fontHeight * 2
-        ctx = canvas.getContext '2d'
-        ctx.font = fontStyle
-      width = canvas.width
-      height = canvas.height
-      capital = textTopAndBottom 'H'
-      ex = textTopAndBottom 'x'
-      lf = textTopAndBottom 'lf'
-      gp = textTopAndBottom 'g'
-      baseline = capital.bottom
-      result =
-        ascent: lf.top
-        capital: capital.top
-        ex: ex.top
-        baseline: capital.bottom
-        descent: gp.bottom
-      fontMetricsCache[fontStyle] = result
-    return result
-
-  getFontHeight = (family, size) ->
-    metrics = fontMetrics family, size
-    return metrics.descent - metrics.ascent
+  Editor::viewportDimensions = ->
+    return {
+      width: @mainCanvas.width
+      height: @mainCanvas.height
+    }
 
   # DEBUG CODE
   # ================================
