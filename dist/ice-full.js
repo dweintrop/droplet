@@ -4371,10 +4371,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         if (this.changeEventVersion !== this.tree.version) {
           this.changeEventVersion = this.tree.version;
-          this.suppressChangeEvent = true;
+          this.suppressAceChangeEvent = true;
           oldScroll = this.aceEditor.session.getScrollTop();
           this.aceEditor.setValue(this.getValue(), -1);
-          this.suppressChangeEvent = false;
+          this.suppressAceChangeEvent = false;
           this.aceEditor.session.setScrollTop(oldScroll);
           this.fireEvent('change', []);
         }
@@ -6177,7 +6177,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.aceEditor.getSession().setMode('ace/mode/coffee');
       this.aceEditor.getSession().setTabSize(2);
       this.aceEditor.on('change', function() {
-        if (_this.currentlyUsingBlogs && !_this.suppressChangeEvent) {
+        if (_this.currentlyUsingBlogs && !_this.suppressAceChangeEvent) {
           return _this.copyAceEditor();
         }
       });
@@ -6953,12 +6953,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.highlightCtx.fill();
     };
     Editor.prototype.mainViewOrChildrenContains = function(model, point) {
-      var childObj, _i, _len, _ref;
-      view = this.view.getViewNodeFor(model);
-      if (view.path.contains(point)) {
+      var childObj, modelView, _i, _len, _ref;
+      modelView = this.view.getViewNodeFor(modelView);
+      if (modelView.path.contains(point)) {
         return true;
       }
-      _ref = view.children;
+      _ref = modelView.children;
       for (_i = 0, _len = _ref.length; _i < _len; _i++) {
         childObj = _ref[_i];
         if (this.mainViewOrChildrenContains(childObj.child, point)) {
