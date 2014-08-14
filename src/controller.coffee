@@ -159,7 +159,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @paletteElement.style.left = '0px'
       @paletteElement.style.top = '0px'
       @paletteElement.style.bottom = '0px'
-      @paletteElement.style.width = '300px'
+      @paletteElement.style.width = '270px'
 
       @iceElement.style.left = @paletteElement.offsetWidth + 'px'
 
@@ -2180,7 +2180,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       bound = @view.getViewNodeFor(@cursor.parent).bounds[line]
       if @cursor.nextVisibleToken()?.type is 'indentEnd' and
          @cursor.prev?.prev.type isnt 'indentStart' or
-         @cursor.next is @tree.end
+         (@cursor.next is @tree.end and @cursor.prev isnt @tree.start)
         return new @draw.Point bound.x, bound.bottom()
       else
         return new @draw.Point bound.x, bound.y
@@ -2762,7 +2762,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         div.className = 'ice-transitioning-element ice-transitioning-gutter'
         div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
 
-        @mainScrollerStuffing.appendChild div
+        @iceElement.appendChild div
 
         do (div, line) =>
           # Set off the css transition
@@ -2923,7 +2923,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
           translatingElements.push div
 
-          @mainScrollerStuffing.appendChild div
+          @iceElement.appendChild div
 
           do (div, line) =>
             setTimeout (=>
@@ -2970,11 +2970,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       return success: true
 
-  Editor::toggleBlocks = ->
+  Editor::toggleBlocks = (cb) ->
     if @currentlyUsingBlocks
-      return @performMeltAnimation()
+      return @performMeltAnimation 500, 1000, cb
     else
-      return @performFreezeAnimation()
+      return @performFreezeAnimation 500, 500, cb
 
   # SCROLLING SUPPORT
   # ================================
