@@ -3187,7 +3187,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
       return unsortedMarkup;
     };
     applyMarkup = function(text, sortedMarkup, opts) {
-      var block, document, head, i, indentDepth, lastIndex, line, lines, mark, markupOnLines, stack, _i, _j, _k, _len, _len1, _len2, _name, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6;
+      var block, document, head, i, indentDepth, lastIndex, line, lines, mark, markupOnLines, socket, stack, _i, _j, _k, _len, _len1, _len2, _name, _ref, _ref1, _ref2, _ref3, _ref4, _ref5, _ref6;
       markupOnLines = {};
       for (_i = 0, _len = sortedMarkup.length; _i < _len; _i++) {
         mark = sortedMarkup[_i];
@@ -3220,8 +3220,12 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
           if (line.length > 0) {
             if ((opts.wrapAtRoot && stack.length === 0) || ((_ref = stack[stack.length - 1]) != null ? _ref.type : void 0) === 'indent') {
               block = new model.Block(0, 'blank', false);
+              socket = new model.Socket();
+              socket.handwritten = true;
               head = head.append(block.start);
+              head = head.append(socket.start);
               head = head.append(new model.TextToken(line));
+              head = head.append(socket.end);
               head = head.append(block.end);
             } else {
               head = head.append(new model.TextToken(line));
@@ -5339,33 +5343,35 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.oldFocusValue = null;
         originalText = this.textFocus.stringify();
         shouldPop = false;
-        newParse = null;
-        string = this.textFocus.stringify().trim();
-        try {
-          newParse = coffee.parse(unparsedValue = string, {
-            wrapAtRoot: false
-          });
-        } catch (_error) {
-          if (string[0] === string[string.length - 1] && ((_ref = string[0]) === '"' || _ref === '\'')) {
-            try {
-              string = escapeString(string);
-              newParse = coffee.parse(unparsedValue = string, {
-                wrapAtRoot: false
-              });
-              this.populateSocket(this.textFocus, string);
-            } catch (_error) {}
+        if (!this.textFocus.handwritten) {
+          newParse = null;
+          string = this.textFocus.stringify().trim();
+          try {
+            newParse = coffee.parse(unparsedValue = string, {
+              wrapAtRoot: false
+            });
+          } catch (_error) {
+            if (string[0] === string[string.length - 1] && ((_ref = string[0]) === '"' || _ref === '\'')) {
+              try {
+                string = escapeString(string);
+                newParse = coffee.parse(unparsedValue = string, {
+                  wrapAtRoot: false
+                });
+                this.populateSocket(this.textFocus, string);
+              } catch (_error) {}
+            }
           }
-        }
-        if ((newParse != null) && newParse.start.next.type === 'blockStart' && newParse.start.next.container.end.next === newParse.end) {
-          this.textFocus.start.append(this.textFocus.end);
-          newParse.start.next.container.spliceIn(this.textFocus.start);
-          this.addMicroUndoOperation(new TextReparseOperation(this.textFocus, unparsedValue));
-          shouldPop = true;
+          if ((newParse != null) && newParse.start.next.type === 'blockStart' && newParse.start.next.container.end.next === newParse.end) {
+            this.textFocus.start.append(this.textFocus.end);
+            newParse.start.next.container.spliceIn(this.textFocus.start);
+            this.addMicroUndoOperation(new TextReparseOperation(this.textFocus, unparsedValue));
+            shouldPop = true;
+          }
         }
         try {
           parseParent = this.textFocus.parent;
           newParse = coffee.parse(parseParent.stringify(), {
-            wrapAtRoot: false
+            wrapAtRoot: true
           });
           if (((_ref1 = newParse.start.next) != null ? (_ref2 = _ref1.container) != null ? _ref2.end : void 0 : void 0) === newParse.end.prev) {
             if (focus === null) {
@@ -5875,8 +5881,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         } else {
           head = this.cursor;
         }
-        while (!((head == null) || head.type === 'socketStart' && (head.container.start.next.type === 'text' || head.container.start.next === head.container.end))) {
-          head = head.next;
+        while (!((head == null) || head.type === 'socketEnd' && (head.container.start.next.type === 'text' || head.container.start.next === head.container.end))) {
+          head = head.prev;
         }
         if (head != null) {
           if ((this.textFocus != null) && head.container.hasParent(this.textFocus.parent)) {
@@ -6037,7 +6043,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         if (head.type === 'blockStart' && head.next.type === 'socketStart' && head.next.container.handwritten && !containsCursor(head.container)) {
           try {
             newBlock = coffee.parse(head.container.stringify(), {
-              wrapAtRoot: false
+              wrapAtRoot: true
             }).start.next;
             if (newBlock.type === 'blockStart') {
               this.addMicroUndoOperation(new ReparseOperation(head.container, newBlock.container));
@@ -6157,7 +6163,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     */
 
     Editor.prototype.copyAceEditor = function() {
-      this.setFontSize_raw(this.aceEditor.getFontSize());
       this.gutter.style.width = this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
       return this.resize();
     };
@@ -6210,6 +6215,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         lineHeight: this.aceEditor.renderer.layerConfig.lineHeight,
         leftEdge: (this.aceEditor.container.getBoundingClientRect().left - getOffsetLeft(this.aceElement) + this.aceEditor.renderer.$gutterLayer.gutterWidth) - this.gutter.offsetWidth + 5
       };
+      this.mainCtx.font = this.aceEditor.getFontSize() + ' ' + this.fontFamily;
       while (head !== this.tree.end) {
         switch (head.type) {
           case 'text':
@@ -6285,6 +6291,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           noText: true
         });
         this.textFocus = this.lassoAnchor = null;
+        this.mainScroller.style.overflow = 'hidden';
+        this.iceElement.style.width = this.wrapperElement.offsetWidth + 'px';
         this.currentlyUsingBlocks = false;
         this.currentlyAnimating = true;
         this.paletteHeader.style.zIndex = 0;
@@ -6293,7 +6301,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         _fn = function(div, textElement, translationVectors, i) {
           return setTimeout((function() {
             div.style.left = (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + 'px';
-            return div.style.top = (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + 'px';
+            div.style.top = (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + 'px';
+            return div.style.fontSize = _this.aceEditor.getFontSize();
           }), fadeTime);
         };
         for (i = _i = 0, _len = textElements.length; _i < _len; i = ++_i) {
@@ -6308,7 +6317,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           div.style.left = "" + (textElement.bounds[0].x - this.scrollOffsets.main.x) + "px";
           div.style.top = "" + (textElement.bounds[0].y - this.scrollOffsets.main.y - this.fontAscent) + "px";
           div.className = 'ice-transitioning-element';
-          div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms";
+          div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms, font-size " + translateTime + "ms";
           translatingElements.push(div);
           this.transitionContainer.appendChild(div);
           _fn(div, textElement, translationVectors, i);
@@ -6321,7 +6330,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         _fn1 = function(div, line) {
           return setTimeout((function() {
             div.style.left = '0px';
-            return div.style.top = (line * lineHeight - aceScrollTop + _this.scrollOffsets.main.y) + 'px';
+            div.style.top = (line * lineHeight - aceScrollTop + _this.scrollOffsets.main.y) + 'px';
+            return div.style.fontSize = _this.aceEditor.getFontSize();
           }), fadeTime);
         };
         for (line = _j = top; top <= bottom ? _j <= bottom : _j >= bottom; line = top <= bottom ? ++_j : --_j) {
@@ -6334,7 +6344,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           div.style.width = "" + this.gutter.offsetWidth + "px";
           translatingElements.push(div);
           div.className = 'ice-transitioning-element ice-transitioning-gutter';
-          div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms";
+          div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms, font-size " + translateTime + "ms";
           this.mainScrollerStuffing.appendChild(div);
           _fn1(div, line);
         }
@@ -6358,6 +6368,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _this.currentlyAnimating = false;
           _this.scrollOffsets.main.y = 0;
           _this.mainCtx.setTransform(1, 0, 0, 1, 0, 0);
+          _this.mainScroller.style.overflow = 'auto';
           for (_k = 0, _len1 = translatingElements.length; _k < _len1; _k++) {
             div = translatingElements[_k];
             div.parentNode.removeChild(div);
@@ -6397,7 +6408,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         setTimeout((function() {
           var aceScrollTop, bottom, div, el, i, line, lineHeight, textElement, textElements, top, translatingElements, translationVectors, treeView, _fn, _fn1, _i, _j, _k, _len, _len1, _ref, _ref1;
-          _this.setFontSize(_this.aceEditor.getFontSize());
+          _this.mainScroller.style.overflow = 'hidden';
+          _this.iceElement.style.width = _this.wrapperElement.offsetWidth + 'px';
           _this.redrawMain({
             noText: true
           });
@@ -6415,7 +6427,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _fn = function(div, textElement) {
             return setTimeout((function() {
               div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x) + "px";
-              return div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y - _this.fontAscent) + "px";
+              div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y - _this.fontAscent) + "px";
+              return div.style.fontSize = _this.fontSize + 'px';
             }), 0);
           };
           for (i = _i = 0, _len = textElements.length; _i < _len; i = ++_i) {
@@ -6426,12 +6439,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = textElement.model.value;
-            div.style.font = _this.fontSize + 'px ' + _this.fontFamily;
+            div.style.font = _this.aceEditor.getFontSize() + ' ' + _this.fontFamily;
             div.style.position = 'absolute';
             div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + "px";
             div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + "px";
             div.className = 'ice-transitioning-element';
-            div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms";
+            div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms, font-size " + translateTime + "ms";
             translatingElements.push(div);
             _this.transitionContainer.appendChild(div);
             _fn(div, textElement);
@@ -6444,19 +6457,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _fn1 = function(div, line) {
             return setTimeout((function() {
               div.style.left = 0;
-              return div.style.top = "" + (treeView.bounds[line].y + treeView.distanceToBase[line].above - _this.view.opts.textHeight - _this.fontAscent) + "px";
+              div.style.top = "" + (treeView.bounds[line].y + treeView.distanceToBase[line].above - _this.view.opts.textHeight - _this.fontAscent) + "px";
+              return div.style.fontSize = _this.fontSize + 'px';
             }), 0);
           };
           for (line = _j = top; top <= bottom ? _j <= bottom : _j >= bottom; line = top <= bottom ? ++_j : --_j) {
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = line + 1;
-            div.style.font = _this.fontSize + 'px ' + _this.fontFamily;
+            div.style.font = _this.aceEditor.getFontSize() + ' ' + _this.fontFamily;
             div.style.width = "" + _this.aceEditor.renderer.$gutter.offsetWidth + "px";
             div.style.left = 0;
             div.style.top = "" + (lineHeight * line - aceScrollTop + _this.scrollOffsets.main.y) + "px";
             div.className = 'ice-transitioning-element ice-transitioning-gutter';
-            div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms";
+            div.style.transition = "left " + translateTime + "ms, top " + translateTime + "ms, font-size " + translateTime + "ms";
             translatingElements.push(div);
             _this.mainScrollerStuffing.appendChild(div);
             _fn1(div, line);
@@ -6483,6 +6497,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           return setTimeout((function() {
             var _l, _len2;
             _this.iceElement.style.transition = _this.paletteWrapper.style.transition = '';
+            _this.mainScroller.style.overflow = 'auto';
             _this.currentlyAnimating = false;
             _this.lineNumberWrapper.style.display = 'block';
             _this.redrawMain();
@@ -6601,8 +6616,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.redrawPalette();
     };
     Editor.prototype.setFontSize = function(fontSize) {
-      this.aceEditor.setFontSize(fontSize);
-      this.aceEditor.resize();
       this.setFontSize_raw(fontSize);
       return this.resize();
     };
@@ -7039,6 +7052,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (changedBox) {
         return this.gutter.style.height = "" + (Math.max(this.mainScroller.offsetHeight, treeView.totalBounds.height)) + "px";
       }
+    });
+    hook('resize', 0, function() {
+      var _ref, _ref1;
+      return this.gutter.style.height = "" + (Math.max(this.iceElement.offsetHeight, (_ref = (_ref1 = this.view.getViewNodeFor(this.tree).totalBounds) != null ? _ref1.height : void 0) != null ? _ref : 0)) + "px";
     });
     Editor.prototype.overflowsX = function() {
       return this.documentDimensions().width > this.viewportDimensions().width;
