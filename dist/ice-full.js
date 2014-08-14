@@ -7144,6 +7144,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       var _ref, _ref1;
       return this.gutter.style.height = "" + (Math.max(this.iceElement.offsetHeight, (_ref = (_ref1 = this.view.getViewNodeFor(this.tree).totalBounds) != null ? _ref1.height : void 0) != null ? _ref : 0)) + "px";
     });
+    Editor.prototype.setPaletteWidth = function(width) {
+      this.paletteWrapper.style.width = width + 'px';
+      return this.resize();
+    };
     Editor.prototype.overflowsX = function() {
       return this.documentDimensions().width > this.viewportDimensions().width;
     };
