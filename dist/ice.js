@@ -4077,14 +4077,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('ice-controller',['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], function(helper, coffee, draw, model, view) {
-    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BLOCK_ONLY, CreateSegmentOperation, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DestroySegmentOperation, DropOperation, Editor, FloatingBlockRecord, FromFloatingOperation, MAX_DROP_DISTANCE, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, MutationButtonOperation, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, ReparseOperation, SetValueOperation, TOP_TAB_HEIGHT, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, TextReparseOperation, ToFloatingOperation, UndoOperation, VALUE_ONLY, binding, containsCursor, deepCopy, deepEquals, editorBindings, escapeString, exports, extend_, getCharactersTo, getOffsetLeft, getOffsetTop, getSocketAtChar, hook, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, unsortedEditorKeyBindings, validateLassoSelection, _i, _j, _len, _len1, _ref, _ref1;
+    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BLOCK_ONLY, CreateSegmentOperation, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DestroySegmentOperation, DropOperation, Editor, FloatingBlockRecord, FromFloatingOperation, MAX_DROP_DISTANCE, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, MutationButtonOperation, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, ReparseOperation, SetValueOperation, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, TextReparseOperation, ToFloatingOperation, UndoOperation, VALUE_ONLY, binding, containsCursor, deepCopy, deepEquals, editorBindings, escapeString, exports, extend_, getCharactersTo, getOffsetLeft, getOffsetTop, getSocketAtChar, hook, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, unsortedEditorKeyBindings, validateLassoSelection, _i, _j, _len, _len1, _ref, _ref1;
     PALETTE_TOP_MARGIN = 5;
     PALETTE_MARGIN = 5;
     MIN_DRAG_DISTANCE = 1;
     PALETTE_LEFT_MARGIN = 5;
     DEFAULT_INDENT_DEPTH = '  ';
     ANIMATION_FRAME_RATE = 60;
-    TOP_TAB_HEIGHT = 10;
     DISCOURAGE_DROP_TIMEOUT = 1000;
     MAX_DROP_DISTANCE = 100;
     ANY_DROP = helper.ANY_DROP;
@@ -4356,7 +4355,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.setTopNubbyStyle = function(height, color) {
       if (height == null) {
-        height = TOP_TAB_HEIGHT;
+        height = 10;
       }
       if (color == null) {
         color = '#EBEBEB';
@@ -5310,7 +5309,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         treeView = this.view.getViewNodeFor(this.tree);
         oldp = deepCopy([treeView.glue[line - 1], treeView.glue[line], treeView.bounds[line].height]);
-        treeView.layout(0, TOP_TAB_HEIGHT);
+        treeView.layout(0, this.nubbyHeight);
         newp = deepCopy([treeView.glue[line - 1], treeView.glue[line], treeView.bounds[line].height]);
         if (deepEquals(newp, oldp)) {
           rect = new this.draw.NoRectangle();
@@ -5851,7 +5850,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.determineCursorPosition = function() {
       var bound, head, line, _ref, _ref1;
       if ((this.cursor != null) && (this.cursor.parent != null)) {
-        this.view.getViewNodeFor(this.tree).layout(0, TOP_TAB_HEIGHT);
+        this.view.getViewNodeFor(this.tree).layout(0, this.nubbyHeight);
         head = this.cursor;
         line = 0;
         while (head !== this.cursor.parent.start) {
