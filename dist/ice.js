@@ -4354,18 +4354,32 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.mainCtx.clearRect(this.scrollOffsets.main.x, this.scrollOffsets.main.y, this.mainCanvas.width, this.mainCanvas.height);
       }
     };
-    hook('resize', 0, function() {
+    Editor.prototype.setTopNubbyStyle = function(height, color) {
+      if (height == null) {
+        height = TOP_TAB_HEIGHT;
+      }
+      if (color == null) {
+        color = '#EBEBEB';
+      }
+      this.nubbyHeight = Math.max(0, height);
+      this.nubbyColor = color;
       this.topNubbyPath = new this.draw.Path();
-      this.topNubbyPath.bevel = true;
-      this.topNubbyPath.push(new this.draw.Point(this.mainCanvas.width, 0));
-      this.topNubbyPath.push(new this.draw.Point(this.mainCanvas.width, TOP_TAB_HEIGHT));
-      this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset + this.view.opts.tabWidth, TOP_TAB_HEIGHT));
-      this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset + this.view.opts.tabWidth * (1 - this.view.opts.tabSideWidth), this.view.opts.tabHeight + TOP_TAB_HEIGHT));
-      this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset + this.view.opts.tabWidth * this.view.opts.tabSideWidth, this.view.opts.tabHeight + TOP_TAB_HEIGHT));
-      this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset, TOP_TAB_HEIGHT));
-      this.topNubbyPath.push(new this.draw.Point(0, TOP_TAB_HEIGHT));
-      this.topNubbyPath.push(new this.draw.Point(0, 0));
-      return this.topNubbyPath.style.fillColor = '#EBEBEB';
+      if (height >= 0) {
+        this.topNubbyPath.bevel = true;
+        this.topNubbyPath.push(new this.draw.Point(this.mainCanvas.width, -5));
+        this.topNubbyPath.push(new this.draw.Point(this.mainCanvas.width, height));
+        this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset + this.view.opts.tabWidth, height));
+        this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset + this.view.opts.tabWidth * (1 - this.view.opts.tabSideWidth), this.view.opts.tabHeight + height));
+        this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset + this.view.opts.tabWidth * this.view.opts.tabSideWidth, this.view.opts.tabHeight + height));
+        this.topNubbyPath.push(new this.draw.Point(this.view.opts.tabOffset, height));
+        this.topNubbyPath.push(new this.draw.Point(-5, height));
+        this.topNubbyPath.push(new this.draw.Point(-5, -5));
+        this.topNubbyPath.style.fillColor = color;
+      }
+      return this.redrawMain();
+    };
+    hook('resize', 0, function() {
+      return this.setTopNubbyStyle(this.nubbyHeight, this.nubbyColor);
     });
     Editor.prototype.redrawMain = function(opts) {
       var binding, layoutResult, oldScroll, _i, _len, _ref, _ref1, _ref2;
@@ -4381,7 +4395,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.mainCtx.save();
           opts.boundingRectangle.clip(this.mainCtx);
         }
-        layoutResult = this.view.getViewNodeFor(this.tree).layout(0, TOP_TAB_HEIGHT);
+        layoutResult = this.view.getViewNodeFor(this.tree).layout(0, this.nubbyHeight);
         this.view.getViewNodeFor(this.tree).draw(this.mainCtx, (_ref = opts.boundingRectangle) != null ? _ref : new this.draw.Rectangle(this.scrollOffsets.main.x, this.scrollOffsets.main.y, this.mainCanvas.width, this.mainCanvas.height), {
           grayscale: 0,
           selected: 0,
