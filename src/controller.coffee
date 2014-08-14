@@ -2351,7 +2351,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           @newHandwrittenSocket = newSocket
 
-        else if @textFocus? then @setTextInputFocus null; @redrawMain()
+        else if @textFocus? and not @shiftKeyPressed
+          @setTextInputFocus null; @redrawMain()
+        else
+          return true
 
       on_keyup: =>
         if @newHandwrittenSocket?
@@ -3480,7 +3483,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   # TODO possibly move this next utility function to view?
   Editor::mainViewOrChildrenContains = (model, point) ->
-    modelView = @view.getViewNodeFor modelView
+    modelView = @view.getViewNodeFor model
 
     if modelView.path.contains point
       return true
