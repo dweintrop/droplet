@@ -6179,7 +6179,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         lineHeight: this.aceEditor.renderer.layerConfig.lineHeight,
         leftEdge: (this.aceEditor.container.getBoundingClientRect().left - getOffsetLeft(this.aceElement) + this.aceEditor.renderer.$gutterLayer.gutterWidth) - this.gutter.offsetWidth + 5
       };
-      this.mainCtx.font = this.aceEditor.getFontSize() + ' ' + this.fontFamily;
+      this.mainCtx.font = this.aceFontSize() + ' ' + this.fontFamily;
       while (head !== this.tree.end) {
         switch (head.type) {
           case 'text':
@@ -6266,7 +6266,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           return setTimeout((function() {
             div.style.left = (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + 'px';
             div.style.top = (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + 'px';
-            return div.style.fontSize = _this.aceEditor.getFontSize();
+            return div.style.fontSize = _this.aceFontSize();
           }), fadeTime);
         };
         for (i = _i = 0, _len = textElements.length; _i < _len; i = ++_i) {
@@ -6295,7 +6295,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           return setTimeout((function() {
             div.style.left = '0px';
             div.style.top = (line * lineHeight - aceScrollTop + _this.scrollOffsets.main.y) + 'px';
-            return div.style.fontSize = _this.aceEditor.getFontSize();
+            return div.style.fontSize = _this.aceFontSize();
           }), fadeTime);
         };
         for (line = _j = top; top <= bottom ? _j <= bottom : _j >= bottom; line = top <= bottom ? ++_j : --_j) {
@@ -6345,6 +6345,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           success: true
         };
       }
+    };
+    Editor.prototype.aceFontSize = function() {
+      return parseFloat(this.aceEditor.getFontSize()) + 'px';
     };
     Editor.prototype.performFreezeAnimation = function(fadeTime, translateTime, cb) {
       var setValueResult,
@@ -6403,7 +6406,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = textElement.model.value;
-            div.style.font = _this.aceEditor.getFontSize() + ' ' + _this.fontFamily;
+            div.style.font = _this.aceFontSize() + ' ' + _this.fontFamily;
             div.style.position = 'absolute';
             div.style.left = "" + (textElement.bounds[0].x - _this.scrollOffsets.main.x + translationVectors[i].x) + "px";
             div.style.top = "" + (textElement.bounds[0].y - _this.scrollOffsets.main.y + translationVectors[i].y) + "px";
@@ -6429,7 +6432,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             div = document.createElement('div');
             div.style.whiteSpace = 'pre';
             div.innerText = line + 1;
-            div.style.font = _this.aceEditor.getFontSize() + ' ' + _this.fontFamily;
+            div.style.font = _this.aceFontSize() + ' ' + _this.fontFamily;
             div.style.width = "" + _this.aceEditor.renderer.$gutter.offsetWidth + "px";
             div.style.left = 0;
             div.style.top = "" + (lineHeight * line - aceScrollTop + _this.scrollOffsets.main.y) + "px";
