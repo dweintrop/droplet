@@ -1613,33 +1613,34 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # The second of these is a reparse attempt.
       # If we can, try to reparse the focus
       # value.
-      newParse = null
-      string = @textFocus.stringify().trim()
-      try
-        newParse = coffee.parse(unparsedValue = string, wrapAtRoot: false)
-      catch
-        if string[0] is string[string.length - 1] and string[0] in ['"', '\'']
-          try
-            string = escapeString string
-            newParse = coffee.parse(unparsedValue = string, wrapAtRoot: false)
-            @populateSocket @textFocus, string
+      unless @textFocus.handwritten
+        newParse = null
+        string = @textFocus.stringify().trim()
+        try
+          newParse = coffee.parse(unparsedValue = string, wrapAtRoot: false)
+        catch
+          if string[0] is string[string.length - 1] and string[0] in ['"', '\'']
+            try
+              string = escapeString string
+              newParse = coffee.parse(unparsedValue = string, wrapAtRoot: false)
+              @populateSocket @textFocus, string
 
-      if newParse? and newParse.start.next.type is 'blockStart' and
-          newParse.start.next.container.end.next is newParse.end
-        # Empty the socket
-        @textFocus.start.append @textFocus.end
+        if newParse? and newParse.start.next.type is 'blockStart' and
+            newParse.start.next.container.end.next is newParse.end
+          # Empty the socket
+          @textFocus.start.append @textFocus.end
 
-        # Splice the other in
-        newParse.start.next.container.spliceIn @textFocus.start
+          # Splice the other in
+          newParse.start.next.container.spliceIn @textFocus.start
 
-        @addMicroUndoOperation new TextReparseOperation @textFocus, unparsedValue
-        shouldPop = true
+          @addMicroUndoOperation new TextReparseOperation @textFocus, unparsedValue
+          shouldPop = true
 
       try
         # TODO make 'reparsable' property, bubble up until then
         parseParent = @textFocus.parent
 
-        newParse = coffee.parse(parseParent.stringify(), wrapAtRoot: false)
+        newParse = coffee.parse parseParent.stringify(), wrapAtRoot: true
 
         if newParse.start.next?.container?.end is newParse.end.prev
           if focus is null
@@ -2230,9 +2231,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       if @textFocus? then head = @textFocus.start
       else head = @cursor
 
-      until (not head?) or head.type is 'socketStart' and
+      until (not head?) or head.type is 'socketEnd' and
           (head.container.start.next.type is 'text' or head.container.start.next is head.container.end)
-        head = head.next
+        head = head.prev
 
       if head?
         if @textFocus? and head.container.hasParent @textFocus.parent
@@ -2403,7 +2404,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           not containsCursor head.container
         try
           # Reparse the block.
-          newBlock = coffee.parse(head.container.stringify(), wrapAtRoot: false).start.next
+          newBlock = coffee.parse(head.container.stringify(), wrapAtRoot: true).start.next
 
           # (we only reparse if it is actually
           # a better parse than a handwritten block).
@@ -2536,7 +2537,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # ================================
 
   Editor::copyAceEditor = ->
-    @setFontSize_raw @aceEditor.getFontSize()
     @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
     @resize()
 
@@ -2615,6 +2615,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           @gutter.offsetWidth + 5 # TODO see above
     }
 
+    @mainCtx.font = @aceEditor.getFontSize() + ' ' + @fontFamily
+
     until head is @tree.end
       switch head.type
         when 'text'
@@ -2684,6 +2686,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @redrawMain noText: true
       @textFocus = @lassoAnchor = null
 
+      # Hide scrollbars and increase width
+      @mainScroller.style.overflow = 'hidden'
+      @iceElement.style.width = @wrapperElement.offsetWidth + 'px'
+
       @currentlyUsingBlocks = false; @currentlyAnimating = true
 
       # Move the palette header into the background
@@ -2714,7 +2720,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         div.style.top = "#{textElement.bounds[0].y - @scrollOffsets.main.y - @fontAscent}px"
 
         div.className = 'ice-transitioning-element'
-        div.style.transition = "left #{translateTime}ms, top #{translateTime}ms"
+        div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
         translatingElements.push div
 
         @transitionContainer.appendChild div
@@ -2723,6 +2729,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           setTimeout (=>
             div.style.left = (textElement.bounds[0].x - @scrollOffsets.main.x + translationVectors[i].x) + 'px'
             div.style.top = (textElement.bounds[0].y - @scrollOffsets.main.y + translationVectors[i].y) + 'px'
+            div.style.fontSize = @aceEditor.getFontSize()
           ), fadeTime
 
       top = Math.max @aceEditor.getFirstVisibleRow(), 0
@@ -2746,7 +2753,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         translatingElements.push div
 
         div.className = 'ice-transitioning-element ice-transitioning-gutter'
-        div.style.transition = "left #{translateTime}ms, top #{translateTime}ms"
+        div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
 
         @mainScrollerStuffing.appendChild div
 
@@ -2755,6 +2762,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           setTimeout (=>
             div.style.left = '0px'
             div.style.top = (line * lineHeight - aceScrollTop + @scrollOffsets.main.y) + 'px'
+            div.style.fontSize = @aceEditor.getFontSize()
           ), fadeTime
 
       @lineNumberWrapper.style.display = 'none'
@@ -2797,6 +2805,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         @scrollOffsets.main.y = 0
         @mainCtx.setTransform 1, 0, 0, 1, 0, 0
 
+        # Show scrollbars again
+        @mainScroller.style.overflow = 'auto'
+
         for div in translatingElements
           div.parentNode.removeChild div
 
@@ -2822,7 +2833,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         @mainScroller.scrollTop = @view.getViewNodeFor(@tree).bounds[@aceEditor.getFirstVisibleRow()].y
 
       setTimeout (=>
-        @setFontSize @aceEditor.getFontSize()
+        # Hide scrollbars and increase width
+        @mainScroller.style.overflow = 'hidden'
+        @iceElement.style.width = @wrapperElement.offsetWidth + 'px'
+
         @redrawMain noText: true
 
         @currentlyUsingBlocks = true
@@ -2856,14 +2870,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           div.innerText = textElement.model.value
 
-          div.style.font = @fontSize + 'px ' + @fontFamily
+          div.style.font = @aceEditor.getFontSize() + ' ' + @fontFamily
           div.style.position = 'absolute'
 
           div.style.left = "#{textElement.bounds[0].x - @scrollOffsets.main.x + translationVectors[i].x}px"
           div.style.top = "#{textElement.bounds[0].y - @scrollOffsets.main.y + translationVectors[i].y}px"
 
           div.className = 'ice-transitioning-element'
-          div.style.transition = "left #{translateTime}ms, top #{translateTime}ms"
+          div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
           translatingElements.push div
 
           @transitionContainer.appendChild div
@@ -2872,6 +2886,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
             setTimeout (=>
               div.style.left = "#{textElement.bounds[0].x - @scrollOffsets.main.x}px"
               div.style.top = "#{textElement.bounds[0].y - @scrollOffsets.main.y - @fontAscent}px"
+              div.style.fontSize = @fontSize + 'px'
             ), 0
 
         top = Math.max @aceEditor.getFirstVisibleRow(), 0
@@ -2888,14 +2903,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           div.innerText = line + 1
 
-          div.style.font = @fontSize + 'px ' + @fontFamily
+          div.style.font = @aceEditor.getFontSize() + ' ' + @fontFamily
           div.style.width = "#{@aceEditor.renderer.$gutter.offsetWidth}px"
 
           div.style.left = 0
           div.style.top = "#{lineHeight * line - aceScrollTop + @scrollOffsets.main.y}px"
 
           div.className = 'ice-transitioning-element ice-transitioning-gutter'
-          div.style.transition = "left #{translateTime}ms, top #{translateTime}ms"
+          div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
           translatingElements.push div
 
           @mainScrollerStuffing.appendChild div
@@ -2904,6 +2919,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
             setTimeout (=>
               div.style.left = 0
               div.style.top = "#{treeView.bounds[line].y + treeView.distanceToBase[line].above - @view.opts.textHeight - @fontAscent}px"
+              div.style.fontSize = @fontSize + 'px'
             ), 0
 
         for el in [@mainCanvas, @highlightCanvas]
@@ -2924,6 +2940,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         setTimeout (=>
           @iceElement.style.transition =
             @paletteWrapper.style.transition = ''
+
+          # Show scrollbars again
+          @mainScroller.style.overflow = 'auto'
 
           @currentlyAnimating = false
           @lineNumberWrapper.style.display = 'block'
@@ -3065,8 +3084,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @redrawMain(); @redrawPalette()
 
   Editor::setFontSize = (fontSize) ->
-    @aceEditor.setFontSize fontSize
-    @aceEditor.resize()
     @setFontSize_raw fontSize
     @resize()
 
@@ -3561,6 +3578,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     if changedBox
       @gutter.style.height = "#{Math.max @mainScroller.offsetHeight, treeView.totalBounds.height}px"
+
+  hook 'resize', 0, ->
+    @gutter.style.height = "#{Math.max @iceElement.offsetHeight, @view.getViewNodeFor(@tree).totalBounds?.height ? 0}px"
 
   # OVRFLOW BIT
   # ================================
