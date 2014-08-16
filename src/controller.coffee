@@ -13,6 +13,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   ANIMATION_FRAME_RATE = 60
   DISCOURAGE_DROP_TIMEOUT = 1000
   MAX_DROP_DISTANCE = 100
+  CURSOR_WIDTH_DECREASE = 3
+  CURSOR_HEIGHT_DECREASE = 2
 
   ANY_DROP = helper.ANY_DROP
   BLOCK_ONLY = helper.BLOCK_ONLY
@@ -74,6 +76,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     'redraw_main': []       # whenever we need to redraw the main canvas
     'redraw_palette': []    # whenever we need to redraw the palette
+    'set_palette': []       # whenever we switch palette categories
 
     'mousedown': []
     'mousemove': []
@@ -203,13 +206,13 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # We will preventDefault (!executeDefault) if anyone
       # wants to preventDefault.
       for combo, fns of editorBindings.key then do (fns) =>
-        @keyListener.simple_combo combo, =>
+        @keyListener.simple_combo combo, (event, count) =>
           state = {}
 
           executeDefault = true
 
           for fn in fns
-            result = fn.call(this, state) ? true
+            result = fn.call(this, state, event, count) ? true
             executeDefault and= result
 
           return executeDefault
@@ -258,6 +261,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # ## Document initialization
       # We start of with an empty document
       @tree = new model.Segment()
+      @tree.start.insert @cursor
 
       @resize()
 
@@ -316,6 +320,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         binding.call this
 
       @paletteCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
+      @paletteHighlightCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
 
       @redrawPalette()
 
@@ -434,10 +439,18 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       else
         delete @extraMarks[id]
 
+    @redrawCursors()
+
+  Editor::clearCursorCanvas = ->
+    @cursorCtx.clearRect @scrollOffsets.main.x, @scrollOffsets.main.y, @cursorCanvas.width, @cursorCanvas.height
+
+  Editor::redrawCursors = ->
+    @clearCursorCanvas()
+
     if @textFocus?
       @redrawTextHighlights()
 
-    else
+    else unless @lassoSegment?
       @drawCursor()
 
   Editor::drawCursor = -> @strokeCursor @determineCursorPosition()
@@ -446,14 +459,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @paletteCtx.clearRect @scrollOffsets.palette.x, @scrollOffsets.palette.y,
         @paletteCanvas.width, @paletteCanvas.height
 
-
   Editor::redrawPalette = ->
       @clearPalette()
-
-      # Supply our palette canvas for text measuring
-      @draw.setCtx @paletteCtx
-
-      @draw.setGlobalFontSize @fontSize
 
       # We will construct a vertical layout
       # with padding for the palette blocks.
@@ -842,7 +849,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     # If it came back positive,
     # deal with the click.
-    if hitTestResult?
+    if hitTestResult? and event.which is 1
       # Record the hit test result (the block we want to pick up)
       @clickedBlock = hitTestResult
 
@@ -1323,7 +1330,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         # Unapply the "selected" style to the current palette group header
         @currentPaletteGroupHeader.className =
             @currentPaletteGroupHeader.className.replace(
-                /\s[-\w]*-selected\b/, '');
+                /\s[-\w]*-selected\b/, '')
 
         # Now we are the current palette group header
         @currentPaletteGroupHeader = paletteGroupHeader
@@ -1334,6 +1341,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
         # Redraw the palette.
         @redrawPalette()
+
+        for event in editorBindings.set_palette
+          event.call this
 
       paletteGroupHeader.addEventListener 'click', clickHandler
       paletteGroupHeader.addEventListener 'touchstart', clickHandler
@@ -1347,6 +1357,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         # Apply the "selected" style to us
         @currentPaletteGroupHeader.className +=
             ' ice-palette-group-header-selected'
+
+        @redrawPalette()
+        for event in editorBindings.set_palette
+          event.call this
+
 
   # The palette hierarchical menu is on top of the track div
   # so that we can click it. However, we do not want this to happen
@@ -1379,11 +1394,34 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     @clickedBlockIsPaletteBlock = false
 
-  # We will also have mouseover texts for blocks.
-  # This is an experimental feature right now.
+  # PALETTE HIGHLIGHT CODE
+  # ================================
+  hook 'populate', 0, ->
+    @paletteHighlightCanvas = document.createElement 'canvas'
+    @paletteHighlightCanvas.className = 'ice-palette-highlight-canvas'
+    @paletteHighlightCtx = @paletteHighlightCanvas.getContext '2d'
+
+    @paletteHighlightPath = null
+    @currentHighlightedPaletteBlock = null
+
+    @paletteWrapper.appendChild @paletteHighlightCanvas
+
+  hook 'resize', 0, ->
+    @paletteHighlightCanvas.style.top = @paletteHeader.offsetHeight + 'px'
+    @paletteHighlightCanvas.width = @paletteCanvas.width
+    @paletteHighlightCanvas.height = @paletteCanvas.height
+
   hook 'redraw_palette', 0, ->
+    if @currentHighlightedPaletteBlock?
+      @paletteHighlightCtx.clearRect @scrollOffsets.palette.x, @scrollOffsets.palette.y,
+        @paletteHighlightCanvas.width + @scrollOffsets.palette.x, @paletteHighlightCanvas.height + @scrollOffsets.palette.y
+      @paletteHighlightPath.draw @paletteHighlightCtx
+
+  hook 'set_palette', 0, ->
     # Remove the existent blocks
     @paletteScrollerStuffing.innerHTML = ''
+
+    @currentHighlightedPaletteBlock = null
 
     # Add new blocks
     for block in @currentPaletteBlocks
@@ -1393,14 +1431,35 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # TODO: this should be specified by the API user
       hoverDiv.title = block.stringify()
 
-      bounds = @view.getViewNodeFor(block).getBounds()
+      bounds = @view.getViewNodeFor(block).totalBounds
+
+      console.log bounds
 
       hoverDiv.style.top = "#{bounds.y}px"
       hoverDiv.style.left = "#{bounds.x}px"
 
       # Clip boxes to the width of the palette to prevent x-scrolling. TODO: fix x-scrolling behaviour.
-      hoverDiv.style.width = "#{Math.min(bounds.width, @paletteScroller.offsetWidth - PALETTE_LEFT_MARGIN)}px"
+      hoverDiv.style.width = "#{Math.min(bounds.width, Infinity)}px"
       hoverDiv.style.height = "#{bounds.height}px"
+
+      do (block) =>
+        hoverDiv.addEventListener 'mousemove', (event) =>
+          palettePoint = @trackerPointToPalette @getPointRelativeToTracker event
+          if @mainViewOrChildrenContains block, palettePoint
+            unless block is @currentHighlightedPaletteBlock
+              @paletteHighlightPath = @getHighlightPath block, {color: '#FF0'}
+              @paletteHighlightPath.draw @paletteHighlightCtx
+              @currentHighlightedPaletteBlock = block
+          else if block is @currentHighlightedPaletteBlock
+            @currentHighlightedPaletteBlock = null
+            @paletteHighlightCtx.clearRect @scrollOffsets.palette.x, @scrollOffsets.palette.y,
+              @paletteHighlightCanvas.width + @scrollOffsets.palette.x, @paletteHighlightCanvas.height + @scrollOffsets.palette.y
+
+        hoverDiv.addEventListener 'mouseout', (event) =>
+          if block is @currentHighlightedPaletteBlock
+            @currentHighlightedPaletteBlock = null
+            @paletteHighlightCtx.clearRect @scrollOffsets.palette.x, @scrollOffsets.palette.y,
+              @paletteHighlightCanvas.width + @scrollOffsets.palette.x, @paletteHighlightCanvas.height + @scrollOffsets.palette.y
 
       @paletteScrollerStuffing.appendChild hoverDiv
 
@@ -1467,6 +1526,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # to mirror the text to which it is associated.
     for event in ['input', 'keyup', 'keydown', 'select']
       @hiddenInput.addEventListener event, =>
+        @highlightFlashShow()
         if @textFocus?
           @populateSocket @textFocus, @hiddenInput.value
 
@@ -1541,8 +1601,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     else
       @redrawMain()
 
-    @redrawTextHighlights true
-
   Editor::redrawTextHighlights = (scrollIntoView = false) ->
     textFocusView = @view.getViewNodeFor @textFocus
 
@@ -1563,29 +1621,31 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     #
     # Draw a line if it is just a cursor
     if @hiddenInput.selectionStart is @hiddenInput.selectionEnd
-      @mainCtx.strokeStyle = '#000'
-      @mainCtx.strokeRect startPosition, textFocusView.bounds[startRow].y,
+      @cursorCtx.strokeStyle = '#000'
+      @cursorCtx.strokeRect startPosition, textFocusView.bounds[startRow].y,
         0, @view.opts.textHeight
+      @textInputHighlighted = false
 
     # Draw a translucent rectangle if there is a selection.
     else
-      @mainCtx.fillStyle = 'rgba(0, 0, 256, 0.3)'
+      @textInputHighlighted = true
+      @cursorCtx.fillStyle = 'rgba(0, 0, 256, 0.3)'
 
       if startRow is endRow
-        @mainCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding,
+        @cursorCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding,
           endPosition - startPosition, @view.opts.textHeight
 
       else
-        @mainCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding,
+        @cursorCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding,
           textFocusView.bounds[startRow].right() - @view.opts.textPadding - startPosition, @view.opts.textHeight
 
         for i in [startRow + 1...endRow]
-          @mainCtx.fillRect textFocusView.bounds[i].x,
+          @cursorCtx.fillRect textFocusView.bounds[i].x,
             textFocusView.bounds[i].y + @view.opts.textPadding,
             textFocusView.bounds[i].width,
             @view.opts.textHeight
 
-        @mainCtx.fillRect textFocusView.bounds[endRow].x,
+        @cursorCtx.fillRect textFocusView.bounds[endRow].x,
           textFocusView.bounds[endRow].y + @view.opts.textPadding,
           endPosition - textFocusView.bounds[endRow].x,
           @view.opts.textHeight
@@ -1708,18 +1768,16 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     if selectionEnd < 0 then selectionEnd = @textFocus.stringify().length - selectionEnd
 
     # Focus the hidden input.
-    setTimeout (=>
-      if @textFocus?
-        @hiddenInput.focus()
-        if @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
-           @hiddenInput.value[0] in ['\'', '"']
-          @hiddenInput.setSelectionRange 1, @hiddenInput.value.length - 1
-        else
-          @hiddenInput.setSelectionRange 0, @hiddenInput.value.length
-        @redrawTextInput()
-    ), 0
+    if @textFocus?
+      @hiddenInput.focus()
+      if @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
+         @hiddenInput.value[0] in ['\'', '"']
+        @hiddenInput.setSelectionRange 1, @hiddenInput.value.length - 1
+      else
+        @hiddenInput.setSelectionRange 0, @hiddenInput.value.length
+      @redrawTextInput()
 
-    # Re@draw.
+    # Redraw.
     @redrawMain(); @redrawTextInput()
 
   Editor::populateSocket = (socket, string) ->
@@ -1769,7 +1827,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   Editor::selectDoubleClick = (point) ->
     position = @getTextPosition point
-    
+
     before = @textFocus.stringify()[...position].match(/\w*$/)[0]?.length ? 0
     after = @textFocus.stringify()[position..].match(/^\w*/)[0]?.length ? 0
 
@@ -1803,7 +1861,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       hitTestResult = @hitTestTextInput mainPoint, @tree
 
     if hitTestResult?
-      
       unless hitTestResult is @textFocus
         @setTextInputFocus hitTestResult
         @redrawMain()
@@ -1888,7 +1945,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @lassoSelect = segment.isLassoSelect
 
     undo: (editor) ->
-      editor.tree.getTokenAtLocation(@first).container.remove()
+      editor.tree.getTokenAtLocation(@first).container.unwrap()
 
       return editor.tree.getTokenAtLocation @first
 
@@ -1915,7 +1972,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       return segment.end
 
     redo: (editor) ->
-      editor.tree.getTokenAtLocation(@first).container.remove()
+      editor.tree.getTokenAtLocation(@first).container.unwrap()
 
       return editor.tree.getTokenAtLocation @first
 
@@ -1961,7 +2018,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         next = head.next
 
         @addMicroUndoOperation new DestroySegmentOperation head.container
-        head.container.remove() #MUTATION
+        head.container.unwrap() #MUTATION
         needToRedraw = true
 
         head = next
@@ -2114,6 +2171,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     unless destination? then return
     unless @inTree(destination) then return
 
+    @highlightFlashShow()
+
     # Otherwise, splice the cursor out.
     @cursor.remove()
 
@@ -2147,6 +2206,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   Editor::moveCursorUp = ->
     # Seek the place we want to move the cursor
     head = @cursor.prev?.prev
+
+    @highlightFlashShow()
 
     # If we're at the beginning, abort.
     unless head? then return
@@ -2280,30 +2341,49 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     blockEnd = @cursor.prev
 
-    until blockEnd.type in ['blockEnd', 'indentStart']
+    until blockEnd?.type in ['blockEnd', 'indentStart', undefined]
       blockEnd = blockEnd.prev
 
+    unless blockEnd? then return
+
     if blockEnd.type is 'blockEnd'
-      @addMicroUndoOperation 'CAPTURE_POINT'
       @addMicroUndoOperation new PickUpOperation blockEnd.container
 
       blockEnd.container.spliceOut() #MUTATION
 
       @redrawMain()
 
-  hook 'key.backspace', 0, (state) ->
-    if state.capturedBackspace then return
+  hook 'key.backspace', 0, (state, event) ->
+    if state.capturedBackspace
+      return
 
     # We don't want to interrupt any text input editing
     # sessions. We will, however, delete a handwritten
     # block if it is currently empty.
-    if not @textFocus? or
+    if @lassoSegment?
+      @addMicroUndoOperation 'CAPTURE_POINT'
+      @deleteLassoSegment()
+      return false
+
+    else if not @textFocus? or
         (@hiddenInput.value.length is 0 and @textFocus.handwritten)
+      @addMicroUndoOperation 'CAPTURE_POINT'
       @deleteAtCursor()
       state.capturedBackspace = true
       return false
 
     return true
+
+  Editor::deleteLassoSegment = ->
+    unless @lassoSegment?
+      throw new Error 'Cannot delete nonexistent lasso segment'
+
+    @addMicroUndoOperation new PickUpOperation @lassoSegment
+
+    @lassoSegment.spliceOut()
+    @lassoSegment = null
+
+    @redrawMain()
 
   # HANDWRITTEN BLOCK SUPPORT
   # ================================
@@ -2341,8 +2421,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           head = @cursor.prev
           while head.type in ['newline', 'cursor', 'segmentStart', 'segmentEnd'] and head isnt @tree.start
             head = head.prev
-
-          console.log 'found', head
 
           # Log the undo operation for this
           @addMicroUndoOperation 'CAPTURE_POINT'
@@ -2777,10 +2855,12 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # Kick off fade-out transition
 
       @mainCanvas.style.transition =
-        @highlightCanvas.style.transition = "opacity #{fadeTime}ms linear"
+        @highlightCanvas.style.transition =
+        @cursorCanvas.style.opacity = "opacity #{fadeTime}ms linear"
 
       @mainCanvas.style.opacity =
-        @highlightCanvas.style.opacity = 0
+        @highlightCanvas.style.opacity =
+        @cursorCanvas.style.opacity = 0
 
       setTimeout (=>
         @iceElement.style.transition =
@@ -2842,15 +2922,15 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       else
         @mainScroller.scrollTop = @view.getViewNodeFor(@tree).bounds[@aceEditor.getFirstVisibleRow()].y
 
+      @currentlyUsingBlocks = true
+      @currentlyAnimating = true
+
       setTimeout (=>
         # Hide scrollbars and increase width
         @mainScroller.style.overflow = 'hidden'
         @iceElement.style.width = @wrapperElement.offsetWidth + 'px'
 
         @redrawMain noText: true
-
-        @currentlyUsingBlocks = true
-        @currentlyAnimating = true
 
         @aceElement.style.top = "-9999px"
         @aceElement.style.left = "-9999px"
@@ -2932,11 +3012,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
               div.style.fontSize = @fontSize + 'px'
             ), 0
 
-        for el in [@mainCanvas, @highlightCanvas]
+        for el in [@mainCanvas, @highlightCanvas, @cursorCanvas]
           el.style.opacity = 0
 
         setTimeout (=>
-          for el in [@mainCanvas, @highlightCanvas]
+          for el in [@mainCanvas, @highlightCanvas, @cursorCanvas]
             el.style.transition = "opacity #{fadeTime}ms linear"
             el.style.opacity = 1
         ), translateTime
@@ -3003,6 +3083,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # Also update scroll for the highlight ctx, so that
       # they can match the blocks' positions
       @highlightCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.main.x, -@scrollOffsets.main.y
+      @cursorCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.main.x, -@scrollOffsets.main.y
 
       @redrawMain()
 
@@ -3023,6 +3104,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       #@scrollOffsets.palette.x = @paletteScroller.scrollLeft
 
       @paletteCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
+      @paletteHighlightCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
 
       @redrawPalette()
 
@@ -3209,6 +3291,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   class SetValueOperation extends UndoOperation
     constructor: (@oldValue, @newValue) ->
+      @oldValue = @oldValue.clone()
+      @newValue = @newValue.clone()
 
     undo: (editor) ->
       editor.tree = @oldValue.clone()
@@ -3457,27 +3541,73 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   # CURSOR DRAW SUPPORRT
   # ================================
+  hook 'populate', 0, ->
+    @cursorCanvas = document.createElement 'canvas'
+    @cursorCanvas.className = 'ice-highlight-canvas'
+
+    @cursorCtx = @cursorCanvas.getContext '2d'
+
+    @iceElement.appendChild @cursorCanvas
+
+  hook 'resize', 0, ->
+    @cursorCanvas.width = @iceElement.offsetWidth
+    @cursorCanvas.style.width = "#{@cursorCanvas.width}px"
+
+    @cursorCanvas.height = @iceElement.offsetHeight
+    @cursorCanvas.style.height = "#{@cursorCanvas.height}px"
+
+    @cursorCanvas.style.left = "#{@mainCanvas.offsetLeft}px"
+
   Editor::strokeCursor = (point) ->
     return unless point?
+    @cursorCtx.save()
+    @cursorCtx.beginPath()
 
-    @highlightCtx.beginPath()
+    @cursorCtx.fillStyle =
+      @cursorCtx.strokeStyle = '#000'
 
-    @highlightCtx.fillStyle =
-      @highlightCtx.strokeStyle = '#000'
+    @cursorCtx.lineCap = 'round'
 
-    @highlightCtx.lineWidth = 1
+    @cursorCtx.lineWidth = 3
 
-    if point.x >= 5
-      @highlightCtx.moveTo point.x, point.y
-      @highlightCtx.lineTo point.x - 5, point.y - 5
-      @highlightCtx.lineTo point.x - 5, point.y + 5
+    w = @view.opts.tabWidth / 2 - CURSOR_WIDTH_DECREASE
+    h = @view.opts.tabHeight - CURSOR_HEIGHT_DECREASE
+
+    arcCenter = new @draw.Point point.x + @view.opts.tabOffset + w + CURSOR_WIDTH_DECREASE,
+      point.y - (w*w + h*h) / (2 * h) + h + CURSOR_HEIGHT_DECREASE / 2
+    arcAngle = Math.atan2 w, (w*w + h*h) / (2 * h) - h
+    startAngle = 0.5 * Math.PI - arcAngle
+    endAngle = 0.5 * Math.PI + arcAngle
+
+    @cursorCtx.arc arcCenter.x, arcCenter.y, (w*w + h*h) / (2 * h), startAngle, endAngle
+
+    @cursorCtx.stroke()
+    @cursorCtx.restore()
+
+  Editor::highlightFlashShow = ->
+    if @flashTimeout? then clearTimeout @flashTimeout
+    @cursorCanvas.style.display = 'block'
+    @highlightsCurrentlyShown = true
+    @flashTimeout = setTimeout (=> @flash()), 500
+
+  Editor::highlightFlashHide = ->
+    if @flashTimeout? then clearTimeout @flashTimeout
+    @cursorCanvas.style.display = 'none'
+    @highlightsCurrentlyShown = false
+    @flashTimeout = setTimeout (=> @flash()), 500
+
+  Editor::flash = ->
+    if @lassoSegment? or @draggingBlock? or
+        (@textFocus? and @textInputHighlighted) or
+        not @highlightsCurrentlyShown
+      @highlightFlashShow()
     else
-      @highlightCtx.moveTo point.x, point.y
-      @highlightCtx.lineTo point.x + 5, point.y - 5
-      @highlightCtx.lineTo point.x + 5, point.y + 5
+      @highlightFlashHide()
 
-    @highlightCtx.stroke()
-    @highlightCtx.fill()
+  hook 'populate', 0, ->
+    @highlightsCurrentlyShown = false
+
+    @flashTimeout = setTimeout (=> @flash()), 0
 
   # ONE MORE DROP CASE
   # ================================
@@ -3595,6 +3725,62 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   Editor::setPaletteWidth = (width) ->
     @paletteWrapper.style.width = width + 'px'
     @resize()
+
+  # COPY AND PASTE
+  # ================================
+  hook 'populate', 0, ->
+    @copyPasteInput = document.createElement 'textarea'
+    @copyPasteInput.style.position = 'absolute'
+    @copyPasteInput.style.left = @copyPasteInput.style.top = '-9999px'
+
+    @iceElement.appendChild @copyPasteInput
+
+    @keyListener.register_combo
+      keys: 'ctrl'
+      on_keydown: =>
+        unless @textFocus?
+          @copyPasteInput.focus()
+          if @lassoSegment?
+            @copyPasteInput.value = @lassoSegment.stringify()
+          @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length
+      on_keyup: =>
+        @iceElement.focus()
+
+    pressedVKey = false
+
+    @copyPasteInput.addEventListener 'keydown', (event) ->
+      if event.keyCode is 86
+        pressedVKey = true
+
+    @copyPasteInput.addEventListener 'keyup', (event) ->
+      if event.keyCode is 86
+        pressedVKey = false
+
+    @copyPasteInput.addEventListener 'input', =>
+      if pressedVKey
+        try
+          blocks = coffee.parse @copyPasteInput.value
+
+          @addMicroUndoOperation 'CAPTURE_POINT'
+          @addMicroUndoOperation new DropOperation blocks, @cursor.previousVisibleToken()
+
+          blocks.spliceIn @cursor
+          unless @copyPasteInput.value[@copyPasteInput.value.length - 1] is '\n' or
+              blocks.end.nextVisibleToken().type in ['newline', 'indentEnd']
+            blocks.end.insert new model.NewlineToken()
+
+          @addMicroUndoOperation new DestroySegmentOperation blocks
+
+          blocks.unwrap()
+
+          @redrawMain()
+
+        @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length
+
+  hook 'populate', 0, ->
+    setTimeout (=>
+      @cursor.parent = @tree
+    ), 0
 
   # OVRFLOW BIT
   # ================================

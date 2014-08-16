@@ -50,7 +50,7 @@ define ->
         head = head.parent
 
       return head is parent
-    
+
     # ## clone ##
     # Clone this container, with all the token inside,
     # but with no linked-list pointers in common.
@@ -234,6 +234,7 @@ define ->
     # Insert ourselves _around_ some other
     # tokens.
     wrap: (first, last) ->
+      @parent = @start.parent = @end.parent = first.parent
       first.prev.append @start
       @start.append first
 
@@ -452,7 +453,7 @@ define ->
     insert: (token) ->
       if token instanceof StartToken or
          token instanceof EndToken
-       throw new Error '"insert"-ing a container can cause problems'
+       console.warn '"insert"-ing a container can cause problems'
 
       token.next = @next; token.prev = this
       @next.prev = token; @next = token
@@ -479,7 +480,7 @@ define ->
     insert: (token) ->
       if token instanceof StartToken or
          token instanceof EndToken
-       throw new Error '"insert"-ing a container can cause problems'
+       console.warn '"insert"-ing a container can cause problems'
 
       token.next = @next; token.prev = this
       @next.prev = token; @next = token
@@ -620,7 +621,7 @@ define ->
 
     _cloneEmpty: -> new Segment @isLassoSegment
 
-    remove: ->
+    unwrap: ->
       @notifyChange()
 
       @traverseOneLevel (head, isContainer) =>
