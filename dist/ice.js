@@ -5236,7 +5236,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.paletteHighlightPath.draw(this.paletteHighlightCtx);
       }
     });
-    hook('set_palette', 0, function() {
+    hook('redraw_palette', 0, function() {
       var block, bounds, hoverDiv, _fn, _i, _len, _ref, _results,
         _this = this;
       this.paletteScrollerStuffing.innerHTML = '';
