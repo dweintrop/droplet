@@ -7322,7 +7322,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.copyPasteInput.style.left = this.copyPasteInput.style.top = '-9999px';
       this.iceElement.appendChild(this.copyPasteInput);
       this.keyListener.register_combo({
-        keys: 'ctrl',
+        keys: 'meta',
         on_keydown: function() {
           if (_this.textFocus == null) {
             _this.copyPasteInput.focus();
