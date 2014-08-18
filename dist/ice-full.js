@@ -3156,7 +3156,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
 //@ sourceMappingURL=view.js.map
 */;
 (function() {
-  define('ice-parser',['ice-model'], function(model) {
+  define('ice-parser',['ice-helper', 'ice-model'], function(helper, model) {
     var Parser, YES, applyMarkup, exports, parseObj, regenerateMarkup, sortMarkup, stripFlaggedBlocks;
     exports = {};
     YES = function() {
@@ -3341,7 +3341,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
           }
           if (line.length > 0) {
             if ((opts.wrapAtRoot && stack.length === 0) || ((_ref = stack[stack.length - 1]) != null ? _ref.type : void 0) === 'indent') {
-              block = new model.Block(0, 'blank', false);
+              block = new model.Block(0, 'blank', null, helper.ANY_DROP);
               socket = new model.Socket();
               socket.handwritten = true;
               head = head.append(block.start);
@@ -3349,6 +3349,9 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
               head = head.append(new model.TextToken(line));
               head = head.append(socket.end);
               head = head.append(block.end);
+              if (block.stringify().match(/^\s*#.*$/) != null) {
+                block.socketLevel = helper.BLOCK_ONLY;
+              }
             } else {
               head = head.append(new model.TextToken(line));
             }
@@ -3361,7 +3364,7 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
             mark = _ref1[_k];
             if (!(lastIndex >= mark.location.column || lastIndex >= line.length)) {
               if ((opts.wrapAtRoot && stack.length === 0) || ((_ref2 = stack[stack.length - 1]) != null ? _ref2.type : void 0) === 'indent') {
-                block = new model.Block(0, 'blank', false);
+                block = new model.Block(0, 'blank', null, helper.ANY_DROP);
                 socket = new model.Socket();
                 socket.handwritten = true;
                 head = head.append(block.start);
@@ -3369,6 +3372,9 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
                 head = head.append(new model.TextToken(line.slice(lastIndex, mark.location.column)));
                 head = head.append(socket.end);
                 head = head.append(block.end);
+                if (block.stringify().match(/^\s*#.*$/) != null) {
+                  block.socketLevel = helper.BLOCK_ONLY;
+                }
               } else {
                 head = head.append(new model.TextToken(line.slice(lastIndex, mark.location.column)));
               }
@@ -4546,6 +4552,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.clearPalette = function() {
       return this.paletteCtx.clearRect(this.scrollOffsets.palette.x, this.scrollOffsets.palette.y, this.paletteCanvas.width, this.paletteCanvas.height);
     };
+    Editor.prototype.clearPaletteHighlightCanvas = function() {
+      return this.paletteHighlightCtx.clearRect(this.scrollOffsets.palette.x, this.scrollOffsets.palette.y, this.paletteHighlightCanvas.width, this.paletteHighlightCanvas.height);
+    };
     Editor.prototype.redrawPalette = function() {
       var binding, boundingRect, lastBottomEdge, paletteBlock, paletteBlockView, _i, _j, _len, _len1, _ref, _ref1, _results;
       this.clearPalette();
@@ -5317,8 +5326,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.paletteHighlightCanvas.height = this.paletteCanvas.height;
     });
     hook('redraw_palette', 0, function() {
+      this.clearPaletteHighlightCanvas();
       if (this.currentHighlightedPaletteBlock != null) {
-        this.paletteHighlightCtx.clearRect(this.scrollOffsets.palette.x, this.scrollOffsets.palette.y, this.paletteHighlightCanvas.width + this.scrollOffsets.palette.x, this.paletteHighlightCanvas.height + this.scrollOffsets.palette.y);
         return this.paletteHighlightPath.draw(this.paletteHighlightCtx);
       }
     });
@@ -5334,6 +5343,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           palettePoint = _this.trackerPointToPalette(_this.getPointRelativeToTracker(event));
           if (_this.mainViewOrChildrenContains(block, palettePoint)) {
             if (block !== _this.currentHighlightedPaletteBlock) {
+              _this.clearPaletteHighlightCanvas();
               _this.paletteHighlightPath = _this.getHighlightPath(block, {
                 color: '#FF0'
               });
@@ -5342,7 +5352,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
           } else if (block === _this.currentHighlightedPaletteBlock) {
             _this.currentHighlightedPaletteBlock = null;
-            return _this.paletteHighlightCtx.clearRect(_this.scrollOffsets.palette.x, _this.scrollOffsets.palette.y, _this.paletteHighlightCanvas.width + _this.scrollOffsets.palette.x, _this.paletteHighlightCanvas.height + _this.scrollOffsets.palette.y);
+            return _this.clearPalettehighlightCanvas();
           }
         });
         return hoverDiv.addEventListener('mouseout', function(event) {
