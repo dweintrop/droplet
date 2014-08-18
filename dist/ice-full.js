@@ -4095,7 +4095,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     });
     fixCoffeeScriptError = function(lines, e) {
       var unmatchedline;
-      console.log('encountered error', e.message);
+      console.log('encountered error', e.message, 'line', e.location.first_line);
+      if (/unexpected\s*(?:newline|if|for|while|switch|unless|end of input)/.test(e.message) && /^\s*(?:if|for|while|unless)\s+\S+/.test(lines[e.location.first_line])) {
+        return addEmptyBackTickLineAfter(lines, e.location.first_line);
+      }
       if (/unexpected/.test(e.message)) {
         return backTickLine(lines, e.location.first_line);
       }
@@ -4135,7 +4138,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (!leading || leading[0].length >= lines[n].length) {
         return false;
       }
-      return lines.splice(n + 1, 0, leading[0] + '``');
+      return lines.splice(n + 1, 0, leading[0] + '  ``');
     };
     exports.parse = function(text, opts) {
       if (opts == null) {
@@ -4729,6 +4732,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           return;
         }
         (clone = this.block.clone()).moveTo(editor.tree.getTokenAtLocation(this.before));
+        if (this.block.type === 'segment' && this.block.isLassoSegment) {
+          editor.lassoSegment = this.block;
+        }
         return clone.end;
       };
 
@@ -5596,8 +5602,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               if (newParse.type === 'blockStart') {
                 parseParent.start.prev.append(newParse);
                 newParse.container.end.append(parseParent.end.next);
-                newParse.parent = newParse.start.parent = newParse.end.parent = parseParent.parent;
-                newParse.notifyChange();
+                newParse.container.parent = newParse.parent = newParse.container.end.parent = parseParent.parent;
+                newParse.container.notifyChange();
                 this.addMicroUndoOperation(new ReparseOperation(parseParent, newParse.container));
                 parseParent.parent = null;
               }
@@ -5773,7 +5779,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       function CreateSegmentOperation(segment) {
         this.first = segment.start.getSerializedLocation();
         this.last = segment.end.getSerializedLocation();
-        this.lassoSelect = segment.isLassoSelect;
+        this.lassoSelect = segment.isLassoSegment;
       }
 
       CreateSegmentOperation.prototype.undo = function(editor) {
@@ -5784,9 +5790,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       CreateSegmentOperation.prototype.redo = function(editor) {
         var segment;
         segment = new model.Segment();
-        segment.lassoSelect = this.lassoSelect;
-        editor.tree.getTokenAtLocation(this.first).insertBefore(segment.start);
-        editor.tree.getTokenAtLocation(this.last).insertBefore(segment.end);
+        segment.isLassoSegment = this.lassoSelect;
+        segment.wrap(editor.tree.getTokenAtLocation(this.first), editor.tree.getTokenAtLocation(this.last));
         return segment.end;
       };
 
@@ -5799,15 +5804,17 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       function DestroySegmentOperation(segment) {
         this.first = segment.start.getSerializedLocation();
         this.last = segment.end.getSerializedLocation();
-        this.lassoSelect = segment.isLassoSelect;
+        this.lassoSelect = segment.isLassoSegment;
       }
 
       DestroySegmentOperation.prototype.undo = function(editor) {
         var segment;
         segment = new model.Segment();
-        segment.lassoSelect = this.lassoSelect;
-        editor.tree.getTokenAtLocation(this.first).insertBefore(segment.start);
-        editor.tree.getTokenAtLocation(this.last).insertBefore(segment.end);
+        segment.isLassoSegment = this.lassoSelect;
+        segment.wrap(editor.tree.getTokenAtLocation(this.first), editor.tree.getTokenAtLocation(this.last));
+        if (this.lassoSelect) {
+          editor.lassoSegment = segment;
+        }
         return segment.end;
       };
 
@@ -6075,7 +6082,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       var charsCounted, head;
       head = parent.start;
       charsCounted = 0;
-      while (!(charsCounted >= chars && head.type === 'socketStart' && head.next.type === 'text')) {
+      while (!(charsCounted >= chars && head.type === 'socketStart' && (head.next.type === 'text' || head.next === head.container.end))) {
         if (head.type === 'text') {
           charsCounted += head.value.length;
         }
@@ -6398,7 +6405,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.aceElement = document.createElement('div');
       this.aceElement.className = 'ice-ace';
       this.wrapperElement.appendChild(this.aceElement);
-      console.log('Just appended ace element');
       this.aceEditor = ace.edit(this.aceElement);
       this.aceEditor.setTheme('ace/theme/chrome');
       this.aceEditor.setFontSize(15);
@@ -7351,14 +7357,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.resize();
     };
     hook('populate', 0, function() {
-      var pressedVKey,
+      var pressedVKey, pressedXKey,
         _this = this;
       this.copyPasteInput = document.createElement('textarea');
       this.copyPasteInput.style.position = 'absolute';
       this.copyPasteInput.style.left = this.copyPasteInput.style.top = '-9999px';
       this.iceElement.appendChild(this.copyPasteInput);
       this.keyListener.register_combo({
-        keys: 'ctrl',
+        keys: 'meta',
         on_keydown: function() {
           if (_this.textFocus == null) {
             _this.copyPasteInput.focus();
@@ -7373,14 +7379,19 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
       });
       pressedVKey = false;
+      pressedXKey = false;
       this.copyPasteInput.addEventListener('keydown', function(event) {
         if (event.keyCode === 86) {
           return pressedVKey = true;
+        } else if (event.keyCode === 88) {
+          return pressedXKey = true;
         }
       });
       this.copyPasteInput.addEventListener('keyup', function(event) {
         if (event.keyCode === 86) {
           return pressedVKey = false;
+        } else if (event.keyCode === 88) {
+          return pressedXKey = false;
         }
       });
       return this.copyPasteInput.addEventListener('input', function() {
@@ -7406,6 +7417,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             })()).join('\n');
             blocks = coffee.parse(str);
             _this.addMicroUndoOperation('CAPTURE_POINT');
+            if (_this.lassoSegment != null) {
+              _this.addMicroUndoOperation(new PickUpOperation(_this.lassoSegment));
+              _this.lassoSegment.spliceOut();
+              _this.lassoSegment = null;
+            }
             _this.addMicroUndoOperation(new DropOperation(blocks, _this.cursor.previousVisibleToken()));
             blocks.spliceIn(_this.cursor);
             if (!(_this.copyPasteInput.value[_this.copyPasteInput.value.length - 1] === '\n' || ((_ref1 = blocks.end.nextVisibleToken().type) === 'newline' || _ref1 === 'indentEnd'))) {
@@ -7416,6 +7432,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             _this.redrawMain();
           } catch (_error) {}
           return _this.copyPasteInput.setSelectionRange(0, _this.copyPasteInput.value.length);
+        } else if (pressedXKey && (_this.lassoSegment != null)) {
+          _this.addMicroUndoOperation('CAPTURE_POINT');
+          _this.addMicroUndoOperation(new PickUpOperation(_this.lassoSegment));
+          _this.lassoSegment.spliceOut();
+          _this.lassoSegment = null;
+          return _this.redrawMain();
         }
       });
     });
