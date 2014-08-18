@@ -1604,7 +1604,8 @@
       shadowBlur: 5,
       ctx: document.createElement('canvas').getContext('2d'),
       colors: {
-        "return": '#f2a6a6',
+        error: '#ff0000',
+        "return": '#ecec79',
         control: '#efcf8f',
         value: '#8cec79',
         command: '#8fbfef',
@@ -3126,8 +3127,11 @@
       }
 
       Parser.prototype.parse = function(text, opts) {
-        var marks, markup, segment, _ref;
-        _ref = this.parseFn(text), marks = _ref[0], text = _ref[1];
+        var error, marks, markup, segment, _ref;
+        _ref = this.parseFn(text), marks = _ref.tokens, text = _ref.text, error = _ref.error;
+        if (error && opts.throwError) {
+          throw error;
+        }
         markup = regenerateMarkup(marks);
         sortMarkup(markup);
         segment = applyMarkup(text, markup, opts);
@@ -3387,7 +3391,7 @@
       return document;
     };
     stripFlaggedBlocks = function(segment) {
-      var container, head, text, _results;
+      var container, head, text, _ref, _results;
       head = segment.start;
       _results = [];
       while (head !== segment.end) {
@@ -3396,9 +3400,11 @@
           head = container.end.next;
           _results.push(container.spliceOut());
         } else if (head instanceof model.StartToken && head.container.flagToStrip) {
-          console.log('flagToStrip');
+          console.log(head.container);
+          if ((_ref = head.container.parent) != null) {
+            _ref.color = 'error';
+          }
           text = head.next;
-          console.log('stripping ', text.value);
           text.value = text.value.substring(head.container.flagToStrip.left, text.value.length - head.container.flagToStrip.right);
           _results.push(head = text.next);
         } else {
@@ -3451,7 +3457,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
   var __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('ice-coffee',['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], function(helper, model, parser, CoffeeScript) {
-    var ANY_DROP, BLOCK_FUNCTIONS, BLOCK_ONLY, CoffeeScriptTranspiler, MOSTLY_BLOCK, MOSTLY_VALUE, NO, OPERATOR_PRECEDENCES, VALUE_FUNCTIONS, VALUE_ONLY, YES, addEmptyBackTickLineAfter, backTickLine, coffeeScriptParser, exports, fixCoffeeScriptError, spacestring;
+    var ANY_DROP, BLOCK_FUNCTIONS, BLOCK_ONLY, CoffeeScriptTranspiler, MOSTLY_BLOCK, MOSTLY_VALUE, NO, OPERATOR_PRECEDENCES, VALUE_FUNCTIONS, VALUE_ONLY, YES, addEmptyBackTickLineAfter, backTickLine, coffeeScriptParser, exports, findUnmatchedLine, fixCoffeeScriptError, spacestring;
     exports = {};
     ANY_DROP = helper.ANY_DROP;
     BLOCK_ONLY = helper.BLOCK_ONLY;
@@ -3645,7 +3651,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               fakeBlock = this.addBlock(node.base, depth, 0, 'value', wrappingParen, ANY_DROP);
               return fakeBlock.flagToRemove = true;
             } else if (node.base.nodeType() === 'Literal' && /^#/.test(node.base.value)) {
-              console.log('found hashmark');
               this.addBlock(node.base, depth, 0, 'blank', wrappingParen, ANY_DROP);
               errorSocket = this.addSocket(node.base, depth + 1, -2);
               return errorSocket.flagToStrip = {
@@ -4018,7 +4023,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         try {
           transpiler = new CoffeeScriptTranspiler(text);
           tokens = transpiler.transpile();
-          return [tokens, text];
+          return {
+            tokens: tokens,
+            text: text,
+            error: firstError
+          };
         } catch (_error) {
           e = _error;
           if (!firstError) {
@@ -4034,9 +4043,24 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     });
     fixCoffeeScriptError = function(lines, e) {
+      var unmatchedline;
+      console.log('encountered error', e.message);
       if (/unexpected/.test(e.message)) {
         return backTickLine(lines, e.location.first_line);
       }
+      if (/missing "/.test(e.message) && __indexOf.call(lines[e.location.first_line], '"') >= 0) {
+        return backTickLine(lines, e.location.first_line);
+      }
+      if (/unmatched|missing \)/.test(e.message)) {
+        unmatchedline = findUnmatchedLine(lines, e.location.first_line);
+        if (unmatchedline !== null) {
+          return backTickLine(lines, unmatchedline);
+        }
+      }
+      return null;
+    };
+    findUnmatchedLine = function(lines, above) {
+      return null;
     };
     backTickLine = function(lines, n) {
       if (n < 0 || n >= lines.length) {
@@ -5273,7 +5297,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         hoverDiv.className = 'ice-hover-div';
         hoverDiv.title = block.stringify();
         bounds = this.view.getViewNodeFor(block).totalBounds;
-        console.log(bounds);
         hoverDiv.style.top = "" + bounds.y + "px";
         hoverDiv.style.left = "" + bounds.x + "px";
         hoverDiv.style.width = "" + (Math.min(bounds.width, Infinity)) + "px";
