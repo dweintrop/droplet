@@ -1,8 +1,11 @@
-child_process = require 'child_process'
 path = require 'path'
 
 notify = (message) ->
-  child_process.spawn 'notify-send', [message, '--urgency=low']
+  grunt.util.spawn (
+    cmd: 'notify-send'
+    args: [message, '--urgency=low']
+    fallback: 0
+  ), ->
 
 module.exports = (grunt) ->
   grunt.initConfig
@@ -116,12 +119,9 @@ module.exports = (grunt) ->
     watch:
       options:
         nospawn: true
-      testserver:
-        files: []
-        tasks: ['connect:testserver']
-        options: { atBegin: true, spawn: true, interrupt: true }
+        livereload: true
       sources:
-        files: ['src/*.coffee']
+        files: ['src/*.coffee', 'example/*.coffee']
         tasks: ['quickbuild', 'notify-done']
 
   grunt.loadNpmTasks 'grunt-banner'
@@ -154,10 +154,12 @@ module.exports = (grunt) ->
       grunt.task.run 'connect:qunitserver'
       grunt.task.run 'qunit:all'
       grunt.task.run 'mocha_spawn'
-  grunt.registerTask 'testserver', ['watch']
+  grunt.registerTask 'testserver', ['connect:testserver', 'watch']
   grunt.registerTask 'notify-done', ->
-    child_process.spawn 'notify-send', ['Recompiled.', '--urgency=low']
-    0
+  grunt.util.spawn (
+    cmd: 'notify-send'
+    args: ['Recompiled.', '--urgency=low']
+    fallback: 0), ->
 
   grunt.event.on 'watch', (action, filepath) ->
     if grunt.file.isMatch(grunt.config('watch.sources.files'), filepath)
