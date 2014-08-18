@@ -5276,7 +5276,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       return this.clickedBlockIsPaletteBlock = false;
     });
-    hook('populate', 0, function() {
+    hook('populate', 1, function() {
       this.paletteHighlightCanvas = document.createElement('canvas');
       this.paletteHighlightCanvas.className = 'ice-palette-highlight-canvas';
       this.paletteHighlightCtx = this.paletteHighlightCanvas.getContext('2d');
@@ -5316,7 +5316,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
           } else if (block === _this.currentHighlightedPaletteBlock) {
             _this.currentHighlightedPaletteBlock = null;
-            return _this.clearPalettehighlightCanvas();
+            return _this.clearPaletteHighlightCanvas();
           }
         });
         return hoverDiv.addEventListener('mouseout', function(event) {
@@ -6362,13 +6362,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.aceElement = document.createElement('div');
       this.aceElement.className = 'ice-ace';
       this.wrapperElement.appendChild(this.aceElement);
+      console.log('Just appended ace element');
       this.aceEditor = ace.edit(this.aceElement);
       this.aceEditor.setTheme('ace/theme/chrome');
       this.aceEditor.setFontSize(15);
       this.aceEditor.getSession().setMode('ace/mode/coffee');
       this.aceEditor.getSession().setTabSize(2);
       this.aceEditor.on('change', function() {
-        if (_this.currentlyUsingBlogs && !_this.suppressAceChangeEvent) {
+        if (_this.currentlyUsingBlocks && !_this.suppressAceChangeEvent) {
           return _this.copyAceEditor();
         }
       });
@@ -6722,7 +6723,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.performFreezeAnimation(500, 500, cb);
       }
     };
-    hook('populate', 0.1, function() {
+    hook('populate', 2, function() {
       var _this = this;
       this.scrollOffsets = {
         main: new this.draw.Point(0, 0),
