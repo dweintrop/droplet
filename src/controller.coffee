@@ -708,6 +708,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # Move a clone into position.
       (clone = @block.clone()).moveTo editor.tree.getTokenAtLocation @before
 
+      # If the block was the lasso select, register it
+      # as such.
+      if @block.type is 'segment' and @block.isLassoSegment
+        editor.lassoSegment = @block
+
       # Move the cursor to the end of it.
       return clone.end
 
@@ -1731,10 +1736,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
               parseParent.start.prev.append newParse
               newParse.container.end.append parseParent.end.next
 
-              newParse.parent = newParse.start.parent = newParse.end.parent =
+              newParse.container.parent = newParse.parent = newParse.container.end.parent =
                 parseParent.parent
 
-              newParse.notifyChange()
+              newParse.container.notifyChange()
 
               @addMicroUndoOperation new ReparseOperation parseParent, newParse.container
 
@@ -1960,7 +1965,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     constructor: (segment) ->
       @first = segment.start.getSerializedLocation()
       @last = segment.end.getSerializedLocation()
-      @lassoSelect = segment.isLassoSelect
+      @lassoSelect = segment.isLassoSegment
 
     undo: (editor) ->
       editor.tree.getTokenAtLocation(@first).container.unwrap()
@@ -1969,9 +1974,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     redo: (editor) ->
       segment = new model.Segment()
-      segment.lassoSelect = @lassoSelect
-      editor.tree.getTokenAtLocation(@first).insertBefore segment.start
-      editor.tree.getTokenAtLocation(@last).insertBefore segment.end
+      segment.isLassoSegment = @lassoSelect
+      segment.wrap editor.tree.getTokenAtLocation(@first),
+        editor.tree.getTokenAtLocation(@last)
 
       return segment.end
 
@@ -1979,13 +1984,16 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     constructor: (segment) ->
       @first = segment.start.getSerializedLocation()
       @last = segment.end.getSerializedLocation()
-      @lassoSelect = segment.isLassoSelect
+      @lassoSelect = segment.isLassoSegment
 
     undo: (editor) ->
       segment = new model.Segment()
-      segment.lassoSelect = @lassoSelect
-      editor.tree.getTokenAtLocation(@first).insertBefore segment.start
-      editor.tree.getTokenAtLocation(@last).insertBefore segment.end
+      segment.isLassoSegment = @lassoSelect
+      segment.wrap editor.tree.getTokenAtLocation(@first),
+        editor.tree.getTokenAtLocation(@last)
+
+      if @lassoSelect
+        editor.lassoSegment = segment
 
       return segment.end
 
@@ -2302,7 +2310,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     head = parent.start
     charsCounted = 0
 
-    until charsCounted >= chars and head.type is 'socketStart' and head.next.type is 'text'
+    until charsCounted >= chars and head.type is 'socketStart' and
+        (head.next.type is 'text' or head.next is head.container.end)
       if head.type is 'text' then charsCounted += head.value.length
 
       head = head.next
@@ -2648,8 +2657,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @aceElement.className = 'ice-ace'
 
     @wrapperElement.appendChild @aceElement
-
-    console.log 'Just appended ace element'
 
     @aceEditor = ace.edit @aceElement
 
@@ -3759,7 +3766,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @iceElement.appendChild @copyPasteInput
 
     @keyListener.register_combo
-      keys: 'ctrl'
+      keys: 'meta'
       on_keydown: =>
         unless @textFocus?
           @copyPasteInput.focus()
@@ -3770,14 +3777,19 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         @iceElement.focus()
 
     pressedVKey = false
+    pressedXKey = false
 
     @copyPasteInput.addEventListener 'keydown', (event) ->
       if event.keyCode is 86
         pressedVKey = true
+      else if event.keyCode is 88
+        pressedXKey = true
 
     @copyPasteInput.addEventListener 'keyup', (event) ->
       if event.keyCode is 86
         pressedVKey = false
+      else if event.keyCode is 88
+        pressedXKey = false
 
     @copyPasteInput.addEventListener 'input', =>
       if pressedVKey
@@ -3794,6 +3806,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           blocks = coffee.parse str
 
           @addMicroUndoOperation 'CAPTURE_POINT'
+          if @lassoSegment?
+            @addMicroUndoOperation new PickUpOperation @lassoSegment
+            @lassoSegment.spliceOut(); @lassoSegment = null
+
           @addMicroUndoOperation new DropOperation blocks, @cursor.previousVisibleToken()
 
           blocks.spliceIn @cursor
@@ -3808,6 +3824,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           @redrawMain()
 
         @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length
+      else if pressedXKey and @lassoSegment?
+        @addMicroUndoOperation 'CAPTURE_POINT'
+        @addMicroUndoOperation new PickUpOperation @lassoSegment
+        @lassoSegment.spliceOut(); @lassoSegment = null
+        @redrawMain()
 
   hook 'populate', 0, ->
     setTimeout (=>
