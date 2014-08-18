@@ -4363,6 +4363,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.scrollOffsets.main.x = this.mainScroller.scrollLeft;
         this.mainCtx.setTransform(1, 0, 0, 1, -this.scrollOffsets.main.x, -this.scrollOffsets.main.y);
         this.highlightCtx.setTransform(1, 0, 0, 1, -this.scrollOffsets.main.x, -this.scrollOffsets.main.y);
+        this.cursorCtx.setTransform(1, 0, 0, 1, -this.scrollOffsets.main.x, -this.scrollOffsets.main.y);
         return this.redrawMain();
       };
 
@@ -4445,6 +4446,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           selected: 0,
           noText: (_ref1 = opts.noText) != null ? _ref1 : false
         });
+        this.redrawCursors();
         this.redrawHighlights();
         if (opts.boundingRectangle != null) {
           this.mainCtx.restore();
@@ -5471,6 +5473,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       startPosition = textFocusView.bounds[startRow].x + this.view.opts.textPadding + this.mainCtx.measureText(last_(this.textFocus.stringify().slice(0, this.hiddenInput.selectionStart).split('\n'))).width;
       endPosition = textFocusView.bounds[endRow].x + this.view.opts.textPadding + this.mainCtx.measureText(last_(this.textFocus.stringify().slice(0, this.hiddenInput.selectionEnd).split('\n'))).width;
       if (this.hiddenInput.selectionStart === this.hiddenInput.selectionEnd) {
+        this.cursorCtx.lineWidth = 1;
         this.cursorCtx.strokeStyle = '#000';
         this.cursorCtx.strokeRect(startPosition, textFocusView.bounds[startRow].y, 0, this.view.opts.textHeight);
         this.textInputHighlighted = false;
@@ -6469,7 +6472,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           noText: true
         });
         this.textFocus = this.lassoAnchor = null;
-        this.mainScroller.style.overflow = 'hidden';
+        if (this.mainScroller.scrollWidth > this.mainScroller.offsetWidth) {
+          this.mainScroller.style.overflowX = 'scroll';
+        } else {
+          this.mainScroller.style.overflowX = 'hidden';
+        }
+        this.mainScroller.style.overflowY = 'hidden';
         this.iceElement.style.width = this.wrapperElement.offsetWidth + 'px';
         this.currentlyUsingBlocks = false;
         this.currentlyAnimating = this.currentlyAnimating_suppressRedraw = true;
@@ -6544,8 +6552,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           _this.aceElement.style.top = "0px";
           _this.aceElement.style.left = "0px";
           _this.currentlyAnimating = false;
-          _this.scrollOffsets.main.y = 0;
-          _this.mainCtx.setTransform(1, 0, 0, 1, 0, 0);
           _this.mainScroller.style.overflow = 'auto';
           for (_k = 0, _len1 = translatingElements.length; _k < _len1; _k++) {
             div = translatingElements[_k];
@@ -7136,7 +7142,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (point == null) {
         return;
       }
-      this.cursorCtx.save();
       this.cursorCtx.beginPath();
       this.cursorCtx.fillStyle = this.cursorCtx.strokeStyle = '#000';
       this.cursorCtx.lineCap = 'round';
@@ -7148,8 +7153,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       startAngle = 0.5 * Math.PI - arcAngle;
       endAngle = 0.5 * Math.PI + arcAngle;
       this.cursorCtx.arc(arcCenter.x, arcCenter.y, (w * w + h * h) / (2 * h), startAngle, endAngle);
-      this.cursorCtx.stroke();
-      return this.cursorCtx.restore();
+      return this.cursorCtx.stroke();
     };
     Editor.prototype.highlightFlashShow = function() {
       var _this = this;
