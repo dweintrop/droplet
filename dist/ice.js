@@ -5241,7 +5241,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       for (i = _i = 0, _len = _ref.length; _i < _len; i = ++_i) {
         paletteGroup = _ref[i];
         _results.push((function(paletteGroup) {
-          var clickHandler, data, event, newBlock, newPaletteGroup, paletteGroupHeader, _j, _k, _len1, _len2, _ref1, _ref2, _results1;
+          var clickHandler, data, event, newBlock, newPaletteBlocks, paletteGroupBlocks, paletteGroupHeader, _j, _k, _len1, _len2, _ref1, _ref2, _results1;
           if (i % 2 === 0) {
             paletteHeaderRow = document.createElement('div');
             paletteHeaderRow.className = 'ice-palette-header-row';
@@ -5254,25 +5254,26 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             paletteGroupHeader.className += ' ' + paletteGroup.color;
           }
           paletteHeaderRow.appendChild(paletteGroupHeader);
-          newPaletteGroup = [];
+          newPaletteBlocks = [];
           _ref1 = paletteGroup.blocks;
           for (_j = 0, _len1 = _ref1.length; _j < _len1; _j++) {
             data = _ref1[_j];
             newBlock = coffee.parse(data.block).start.next.container;
             newBlock.spliceOut();
             newBlock.parent = null;
-            newPalette.group.push({
+            newPaletteBlocks.push({
               block: newBlock,
               title: data.title
             });
           }
+          paletteGroupBlocks = newPaletteBlocks;
           clickHandler = function() {
             var event, _k, _len2, _ref2, _results1;
             _this.currentPaletteGroup = paletteGroup.name;
-            _this.currentPaletteBlocks = paletteGroup.blocks.map(function(x) {
+            _this.currentPaletteBlocks = paletteGroupBlocks.map(function(x) {
               return x.block;
             });
-            _this.currentPaletteMetadata = paletteGroup.blocks;
+            _this.currentPaletteMetadata = paletteGroupBlocks;
             _this.currentPaletteGroupHeader.className = _this.currentPaletteGroupHeader.className.replace(/\s[-\w]*-selected\b/, '');
             _this.currentPaletteGroupHeader = paletteGroupHeader;
             _this.currentPaletteGroupHeader.className += ' ice-palette-group-header-selected';
@@ -5289,10 +5290,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           paletteGroupHeader.addEventListener('touchstart', clickHandler);
           if (i === 0) {
             _this.currentPaletteGroup = paletteGroup.name;
-            _this.currentPaletteBlocks = paletteGroup.blocks.map(function(x) {
+            _this.currentPaletteBlocks = paletteGroupBlocks.map(function(x) {
               return x.block;
             });
-            _this.currentPaletteMetadata = paletteGroup.blocks;
+            _this.currentPaletteMetadata = paletteGroupBlocks;
             _this.currentPaletteGroupHeader = paletteGroupHeader;
             _this.currentPaletteGroupHeader.className += ' ice-palette-group-header-selected';
             _this.redrawPalette();
