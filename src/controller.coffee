@@ -128,14 +128,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       @wrapperElement.style.backgroundColor = '#FFF'
 
-      # ### Tracker
-      # Create the div that will track all the ICE editor mouse movement
-
-      #@iceElement = document.createElement 'div'
-      #@iceElement.className = 'ice-track-area'
-
-      #@iceElement.appendChild @iceElement
-
       # ### Canvases
       # Create the palette and main canvases
 
@@ -708,6 +700,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # Move a clone into position.
       (clone = @block.clone()).moveTo editor.tree.getTokenAtLocation @before
 
+      # If the block was the lasso select, register it
+      # as such.
+      if @block.type is 'segment' and @block.isLassoSegment
+        editor.lassoSegment = @block
+
       # Move the cursor to the end of it.
       return clone.end
 
@@ -748,11 +745,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       until blockStart.type is @block.start.type then blockStart = blockStart.next
 
       # Move it to null.
-      if @block.type is 'segment'
-        blockStart.container.moveTo null
-
-      else
-        blockStart.container.moveTo null
+      blockStart.container.spliceOut()
 
       # We may need to replace some of displaced
       # socket text from dropping a block
@@ -954,7 +947,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           head = @draggingBlock.end
 
         if head instanceof model.StartToken
-          if @canDrop(@draggingBlock, head.container) or @discourageDrop @draggingBlock, head.container
+          acceptLevel = @getAcceptLevel @draggingBlock, head.container
+          unless acceptLevel is helper.FORBIDDEN
             dropPoint = @view.getViewNodeFor(head.container).dropPoint
 
             if dropPoint?
@@ -963,7 +957,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
                 y: dropPoint.y
                 w: 0
                 h: 0
-                _ice_needs_shift: not @canDrop @draggingBlock, head.container
+                acceptLevel: acceptLevel
                 _ice_node: head.container
 
         head = head.next
@@ -1017,7 +1011,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           w: MAX_DROP_DISTANCE * 2
           h: MAX_DROP_DISTANCE * 2
         }, (point) =>
-          unless point._ice_needs_shift and not @shiftKeyPressed
+          unless (point.acceptLevel is helper.DISCOURAGED) and not @shiftKeyPressed
             distance = mainPoint.from(point)
             distance.y *= 2; distance = distance.magnitude()
             if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE and
@@ -1046,29 +1040,45 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'mouseup', 0, ->
     clearTimeout @discourageDropTimeout; @discourageDropTimeout = null
 
-  Editor::canDrop = (drag, drop) ->
-    unless drop? then return false
-    unless @view.getViewNodeFor(drop).dropPoint? then return false
-    if drop.parent?.type is 'socket' then return false
+  Editor::getAcceptLevel = (drag, drop) ->
+    unless drop? then return helper.FORBIDDEN
+    unless @view.getViewNodeFor(drop).dropPoint? then return helper.FORBIDDEN
+    if drop.parent?.type is 'socket' then return helper.FORBIDDEN
 
-    if drag?.type is 'segment'
-      return drop.type in ['block', 'segment', 'indent']
-
-    if drop?.type is 'socket'
-      if drag.socketLevel in [ANY_DROP, MOSTLY_VALUE, VALUE_ONLY]
-        return drop.accepts drag
-    else
-      return drag.socketLevel in [ANY_DROP, MOSTLY_BLOCK, BLOCK_ONLY]
-
-  Editor::discourageDrop = (drag, drop) ->
-    unless drop? then return false
+    if drag?.type is 'segment' and
+        drop.type in ['block', 'segment', 'indent']
+      return helper.ENCOURAGED
 
     if drop?.type is 'socket'
-      if drag.socketLevel in [MOSTLY_BLOCK]
-        return drop.accepts drag
-    else
-      return drag.socketLevel in [MOSTLY_VALUE]
+      acceptance = drop.accepts drag
 
+      if acceptance is helper.ENCOURAGE_ALL
+        return helper.ENCOURAGED
+
+      if acceptance is helper.NORMAL and
+          drag.socketLevel in [ANY_DROP, MOSTLY_VALUE, VALUE_ONLY]
+        return helper.ENCOURAGED
+
+      else if acceptance is helper.NORMAL and
+          drag.socketLevel in [MOSTLY_BLOCK]
+        return helper.DISCOURAGED
+
+      else if acceptance is helper.DISCOURAGE and
+          drag.socketLevel isnt BLOCK_ONLY
+        return helper.DISCOURAGED
+
+      else
+        return helper.FORBIDDEN
+
+
+    else if drag.socketLevel in [ANY_DROP, MOSTLY_BLOCK, BLOCK_ONLY]
+      return helper.ENCOURAGED
+
+    else if drag.socketLevel is MOSTLY_VALUE
+      return helper.DISCOURAGED
+
+    else
+      return helper.FORBIDDEN
 
   hook 'mouseup', 1, (point, event, state) ->
     # We will consume this event iff we dropped it successfully
@@ -1093,7 +1103,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # beginning or at its end.
       #
       # We will need to log undo operations here too.
-      @addMicroUndoOperation 'CAPTURE_POINT'
       switch @lastHighlight.type
         when 'indent', 'socket'
           @addMicroUndoOperation new DropOperation @draggingBlock, @lastHighlight.start
@@ -1308,6 +1317,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # This happens at population time.
   hook 'populate', 0, ->
     @currentPaletteBlocks = []
+    @currentPaletteMetadata = []
+
     @clickedBlockIsPaletteBlock = false
 
     # Create the hierarchical menu element.
@@ -1326,10 +1337,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         paletteHeaderRow.className = 'ice-palette-header-row'
         @paletteHeader.appendChild paletteHeaderRow
 
-      # Clone all the blocks so as not to
-      # intrude on outside stuff
-      paletteGroup.blocks = (block.clone() for block in paletteGroup.blocks)
-
       # Create the element itself
       paletteGroupHeader = document.createElement 'div'
       paletteGroupHeader.className = 'ice-palette-group-header'
@@ -1339,12 +1346,24 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       paletteHeaderRow.appendChild paletteGroupHeader
 
+      newPaletteGroup = []
+
+      # Parse all the blocks in this palette and clone them
+      for data in paletteGroup.blocks
+        newBlock = coffee.parse(data.block).start.next.container
+        newBlock.spliceOut(); newBlock.parent = null
+        newPalette.group.push {
+          block: newBlock
+          title: data.title
+        }
+
       # When we click this element,
       # we should switch to it in the palette.
       clickHandler = =>
         # Record that we are the selected group now
         @currentPaletteGroup = paletteGroup.name
-        @currentPaletteBlocks = paletteGroup.blocks
+        @currentPaletteBlocks = paletteGroup.blocks.map (x) -> x.block
+        @currentPaletteMetadata = paletteGroup.blocks
 
         # Unapply the "selected" style to the current palette group header
         @currentPaletteGroupHeader.className =
@@ -1370,7 +1389,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # If we are the first element, make us the selected palette group.
       if i is 0
         @currentPaletteGroup = paletteGroup.name
-        @currentPaletteBlocks = paletteGroup.blocks
+        @currentPaletteBlocks = paletteGroup.blocks.map (x) -> x.block
+        @currentPaletteMetadata = paletteGroup.blocks
         @currentPaletteGroupHeader = paletteGroupHeader
 
         # Apply the "selected" style to us
@@ -1442,12 +1462,13 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @currentHighlightedPaletteBlock = null
 
     # Add new blocks
-    for block in @currentPaletteBlocks
+    for data in @currentPaletteMetadata
+      block = data.block
+
       hoverDiv = document.createElement 'div'
       hoverDiv.className = 'ice-hover-div'
 
-      # TODO: this should be specified by the API user
-      hoverDiv.title = block.stringify()
+      hoverDiv.title = data.title ? block.stringify()
 
       bounds = @view.getViewNodeFor(block).totalBounds
 
@@ -1731,10 +1752,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
               parseParent.start.prev.append newParse
               newParse.container.end.append parseParent.end.next
 
-              newParse.parent = newParse.start.parent = newParse.end.parent =
+              newParse.container.parent = newParse.parent = newParse.container.end.parent =
                 parseParent.parent
 
-              newParse.notifyChange()
+              newParse.container.notifyChange()
 
               @addMicroUndoOperation new ReparseOperation parseParent, newParse.container
 
@@ -1959,8 +1980,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   class CreateSegmentOperation extends UndoOperation
     constructor: (segment) ->
       @first = segment.start.getSerializedLocation()
-      @last = segment.end.getSerializedLocation()
-      @lassoSelect = segment.isLassoSelect
+      @last = segment.end.getSerializedLocation() - 2
+      @lassoSelect = segment.isLassoSegment
 
     undo: (editor) ->
       editor.tree.getTokenAtLocation(@first).container.unwrap()
@@ -1969,23 +1990,26 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     redo: (editor) ->
       segment = new model.Segment()
-      segment.lassoSelect = @lassoSelect
-      editor.tree.getTokenAtLocation(@first).insertBefore segment.start
-      editor.tree.getTokenAtLocation(@last).insertBefore segment.end
+      segment.isLassoSegment = @lassoSelect
+      segment.wrap editor.tree.getTokenAtLocation(@first),
+        editor.tree.getTokenAtLocation(@last)
 
       return segment.end
 
   class DestroySegmentOperation extends UndoOperation
     constructor: (segment) ->
       @first = segment.start.getSerializedLocation()
-      @last = segment.end.getSerializedLocation()
-      @lassoSelect = segment.isLassoSelect
+      @last = segment.end.getSerializedLocation() - 2
+      @lassoSelect = segment.isLassoSegment
 
     undo: (editor) ->
       segment = new model.Segment()
-      segment.lassoSelect = @lassoSelect
-      editor.tree.getTokenAtLocation(@first).insertBefore segment.start
-      editor.tree.getTokenAtLocation(@last).insertBefore segment.end
+      segment.isLassoSegment = @lassoSelect
+      segment.wrap editor.tree.getTokenAtLocation(@first),
+        editor.tree.getTokenAtLocation(@last)
+
+      if @lassoSelect
+        editor.lassoSegment = segment
 
       return segment.end
 
@@ -2302,7 +2326,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     head = parent.start
     charsCounted = 0
 
-    until charsCounted >= chars and head.type is 'socketStart' and head.next.type is 'text'
+    until charsCounted >= chars and head.type is 'socketStart' and
+        (head.next.type is 'text' or head.next is head.container.end)
       if head.type is 'text' then charsCounted += head.value.length
 
       head = head.next
@@ -2649,8 +2674,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     @wrapperElement.appendChild @aceElement
 
-    console.log 'Just appended ace element'
-
     @aceEditor = ace.edit @aceElement
 
     @aceEditor.setTheme 'ace/theme/chrome'
@@ -2697,6 +2720,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     head = @tree.start
 
+    aceSession = @aceEditor.session
     state = {
       # Initial cursor positions are
       # determined by ACE editor configuration.
@@ -2706,7 +2730,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           @gutter.offsetWidth + 5 # TODO find out where this 5 comes from
       y: (@aceEditor.container.getBoundingClientRect().top -
           getOffsetTop(@aceElement)) -
-          @aceEditor.session.getScrollTop()
+          aceSession.getScrollTop()
 
       # Initial indent depth is 0
       indent: 0
@@ -2722,6 +2746,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     @mainCtx.font = @aceFontSize() + ' ' + @fontFamily
 
+    rownum = 0
     until head is @tree.end
       switch head.type
         when 'text'
@@ -2738,7 +2763,12 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         # Newline moves the cursor to the next line,
         # plus some indent.
         when 'newline'
-          state.y += state.lineHeight
+          # Be aware of wrapped ace editor lines.
+          wrappedlines = Math.max(1,
+              aceSession.documentToScreenRow(rownum + 1, 0) -
+              aceSession.documentToScreenRow(rownum, 0))
+          rownum += 1
+          state.y += state.lineHeight * wrappedlines
           if head.specialIndent?
             state.x = state.leftEdge + @mainCtx.measureText(head.specialIndent).width
           else
@@ -2870,7 +2900,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           # Set off the css transition
           setTimeout (=>
             div.style.left = '0px'
-            div.style.top = (line * lineHeight - aceScrollTop) + 'px'
+            div.style.top = (@aceEditor.session.documentToScreenRow(line, 0) *
+                lineHeight - aceScrollTop) + 'px'
             div.style.fontSize = @aceFontSize()
           ), fadeTime
 
@@ -2886,12 +2917,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         @highlightCanvas.style.opacity =
         @cursorCanvas.style.opacity = 0
 
-      setTimeout (=>
-        @iceElement.style.transition =
-          @paletteWrapper.style.transition = "left #{translateTime}ms"
-        @iceElement.style.left = '0px'
-        @paletteWrapper.style.left = "#{-@paletteWrapper.offsetWidth}px"
-      ), fadeTime
+      @iceElement.style.transition =
+        @paletteWrapper.style.transition = "left #{fadeTime}ms"
+
+      @iceElement.style.left = '0px'
+      @paletteWrapper.style.left = "#{-@paletteWrapper.offsetWidth}px"
 
       setTimeout (=>
         # Translate the ICE editor div out of frame.
@@ -2919,6 +2949,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
         for div in translatingElements
           div.parentNode.removeChild div
+
+        @fireEvent 'toggledone', [@currentlyUsingBlocks]
 
         if cb? then do cb
       ), fadeTime + translateTime
@@ -3021,7 +3053,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           div.style.width = "#{@aceEditor.renderer.$gutter.offsetWidth}px"
 
           div.style.left = 0
-          div.style.top = "#{lineHeight * line - aceScrollTop}px"
+          div.style.top = "#{@aceEditor.session.documentToScreenRow(line, 0) *
+              lineHeight - aceScrollTop}px"
 
           div.className = 'ice-transitioning-element ice-transitioning-gutter'
           div.style.transition = "left #{translateTime}ms, top #{translateTime}ms, font-size #{translateTime}ms"
@@ -3046,7 +3079,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         ), translateTime
 
         @iceElement.style.transition =
-          @paletteWrapper.style.transition = "left #{translateTime}ms"
+          @paletteWrapper.style.transition = "left #{fadeTime}ms"
 
         @iceElement.style.left = "#{@paletteWrapper.offsetWidth}px"
         @paletteWrapper.style.left = '0px'
@@ -3067,6 +3100,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
             div.parentNode.removeChild div
 
           @resize()
+
+          @fireEvent 'toggledone', [@currentlyUsingBlocks]
+
           if cb? then do cb
         ), translateTime + fadeTime
 
@@ -3076,7 +3112,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   Editor::toggleBlocks = (cb) ->
     if @currentlyUsingBlocks
-      return @performMeltAnimation 500, 1000, cb
+      return @performMeltAnimation 700, 500, cb
     else
       return @performFreezeAnimation 500, 500, cb
 
@@ -3767,17 +3803,25 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
             @copyPasteInput.value = @lassoSegment.stringify()
           @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length
       on_keyup: =>
-        @iceElement.focus()
+        if @textFocus?
+          @hiddenInput.focus()
+        else
+          @iceElement.focus()
 
     pressedVKey = false
+    pressedXKey = false
 
     @copyPasteInput.addEventListener 'keydown', (event) ->
       if event.keyCode is 86
         pressedVKey = true
+      else if event.keyCode is 88
+        pressedXKey = true
 
     @copyPasteInput.addEventListener 'keyup', (event) ->
       if event.keyCode is 86
         pressedVKey = false
+      else if event.keyCode is 88
+        pressedXKey = false
 
     @copyPasteInput.addEventListener 'input', =>
       if pressedVKey
@@ -3791,14 +3835,19 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
             line[minIndent...]
           ).join '\n'
 
+          str = str.replace /^\n*|\n*$/g, ''
+
           blocks = coffee.parse str
 
           @addMicroUndoOperation 'CAPTURE_POINT'
+          if @lassoSegment?
+            @addMicroUndoOperation new PickUpOperation @lassoSegment
+            @lassoSegment.spliceOut(); @lassoSegment = null
+
           @addMicroUndoOperation new DropOperation blocks, @cursor.previousVisibleToken()
 
           blocks.spliceIn @cursor
-          unless @copyPasteInput.value[@copyPasteInput.value.length - 1] is '\n' or
-              blocks.end.nextVisibleToken().type in ['newline', 'indentEnd']
+          unless blocks.end.nextVisibleToken().type in ['newline', 'indentEnd']
             blocks.end.insert new model.NewlineToken()
 
           @addMicroUndoOperation new DestroySegmentOperation blocks
@@ -3808,6 +3857,11 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           @redrawMain()
 
         @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length
+      else if pressedXKey and @lassoSegment?
+        @addMicroUndoOperation 'CAPTURE_POINT'
+        @addMicroUndoOperation new PickUpOperation @lassoSegment
+        @lassoSegment.spliceOut(); @lassoSegment = null
+        @redrawMain()
 
   hook 'populate', 0, ->
     setTimeout (=>

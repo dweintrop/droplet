@@ -112,6 +112,11 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
     'loadscript'
   ]
 
+  STATEMENT_KEYWORDS = [
+    'break'
+    'continue'
+  ]
+
   OPERATOR_PRECEDENCES =
     '||': 1
     '&&': 2
@@ -130,10 +135,22 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
     '**': 7
     '%%': 7
 
-  YES = -> true
-  NO = -> false
+  SAY_NORMAL= -> helper.NORMAL
+  SAY_FORBID = -> helper.FORBID
+
+  YES = -> yes
+  NO = -> no
 
   spacestring = (n) -> (' ' for [0...Math.max(0, n)]).join('')
+
+  getClassesFor = (node) ->
+    classes = []
+
+    classes.push node.nodeType()
+    if node.nodeType() is 'Call' and (not node.do) and (not node.isNew)
+      classes.push 'works-as-method-call'
+
+    return classes
 
   class CoffeeScriptTranspiler
     constructor: (@text) ->
@@ -312,6 +329,12 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
             if infix.indexOf('+') is -1
               return
 
+          # Treat unary - and + specially if they surround a literal: then
+          # they should just be sucked into the literal.
+          if node.first and not node.second and node.operator in ['+', '-'] and
+              node.first?.base?.nodeType?() is 'Literal'
+            return
+
           @addBlock node, depth, OPERATOR_PRECEDENCES[node.operator], 'value', wrappingParen, VALUE_ONLY
 
           @addSocketAndMark node.first, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth
@@ -341,7 +364,9 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
             @addSocketAndMark node.base, depth + 1, precedence, indentDepth
             for property in node.properties
               if property.nodeType() is 'Access'
-                @addSocketAndMark property.name, depth + 1, precedence, indentDepth, NO
+                @addSocketAndMark property.name, depth + 1, -2, indentDepth, (block) ->
+                  if 'works-as-method-call' in block.classes then return helper.ENCOURAGE_ALL
+                  else return helper.FORBID
               else if property.nodeType() is 'Index'
                 @addSocketAndMark property.index, depth + 1, precedence, indentDepth
 
@@ -361,6 +386,15 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
 
           else
             @mark node.base, depth + 1, precedence, wrappingParen, indentDepth
+
+        # ### Keywords ###
+        when 'Literal'
+          if node.value in STATEMENT_KEYWORDS
+            # handle break and continue
+            @addBlock node, depth, 0, 'return', wrappingParen, BLOCK_ONLY
+          else
+            # otherwise, leave it as a white block
+            0
 
         # ### Literal ###
         # No-op. Translate directly to text
@@ -385,7 +419,16 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
               @addBlock node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE
             else
               @addBlock node, depth, 0, 'command', wrappingParen, ANY_DROP
-              unrecognized = methodname in EITHER_FUNCTIONS
+              unrecognized = not(methodname in EITHER_FUNCTIONS)
+
+            # Deal with weird coffeescript rewrites, e.g., /// #{x} ///
+            # is rewritten to RegExp(...)
+            if methodname?.length > 1 and node?.variable?.locationData and
+                node.variable.locationData.first_column is
+                node.variable.locationData.last_column and
+                node.variable.locationData.first_line is
+                node.variable.locationData.last_line
+              unrecognized = false
 
             if unrecognized or node.variable.base?.nodeType() isnt 'Literal'
               @addSocketAndMark node.variable, depth + 1, 0, indentDepth
@@ -409,7 +452,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
           @addBlock node, depth, precedence, 'value', wrappingParen, VALUE_ONLY
 
           for param in node.params
-            @addSocketAndMark param, depth + 1, 0, indentDepth, NO
+            @addSocketAndMark param, depth + 1, 0, indentDepth, SAY_FORBID
 
           @mark node.body, depth + 1, 0, null, indentDepth
 
@@ -432,7 +475,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
             if node[childName]? then @addSocketAndMark node[childName], depth + 1, 0, indentDepth
 
           for childName in ['index', 'name']
-            if node[childName]? then @addSocketAndMark node[childName], depth + 1, 0, indentDepth, NO
+            if node[childName]? then @addSocketAndMark node[childName], depth + 1, 0, indentDepth, SAY_FORBID
 
           @mark node.body, depth + 1, 0, null, indentDepth
 
@@ -533,7 +576,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
         when 'Class'
           @addBlock node, depth, 0, 'control', wrappingParen, ANY_DROP
 
-          if node.variable? then @addSocketAndMark node.variable, depth + 1, 0, indentDepth, NO
+          if node.variable? then @addSocketAndMark node.variable, depth + 1, 0, indentDepth, SAY_FORBID
           if node.parent? then @addSocketAndMark node.parent, depth + 1, 0, indentDepth
 
           if node.body? then @mark node.body, depth + 1, 0, null, indentDepth
@@ -547,7 +590,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
 
           for property in node.properties
             if property.nodeType() is 'Assign'
-              @addSocketAndMark property.variable, depth + 1, 0, indentDepth, NO
+              @addSocketAndMark property.variable, depth + 1, 0, indentDepth, SAY_FORBID
               @addSocketAndMark property.value, depth + 1, 0, indentDepth
 
 
@@ -679,7 +722,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
     # block around a given node.
     addBlock: (node, depth, precedence, color, wrappingParen, socketLevel) ->
       # Create the block.
-      block = new model.Block precedence, color, node.nodeType(), socketLevel
+      block = new model.Block precedence, color, socketLevel, getClassesFor node
 
       # Add it
       @addMarkup block, node, wrappingParen, depth
@@ -691,7 +734,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
 
     # ## addSocket ##
     # A similar utility function for adding sockets.
-    addSocket: (node, depth, precedence, accepts = YES) ->
+    addSocket: (node, depth, precedence, accepts = SAY_NORMAL) ->
       socket = new model.Socket precedence, false, accepts
 
       @addMarkup socket, node, null, depth
@@ -700,7 +743,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
 
     # ## addSocketAndMark ##
     # Adds a socket for a node, and recursively @marks it.
-    addSocketAndMark: (node, depth, precedence, indentDepth, accepts = YES) ->
+    addSocketAndMark: (node, depth, precedence, indentDepth, accepts = SAY_NORMAL) ->
       socket = @addSocket node, depth, precedence, accepts
 
       @mark node, depth + 1, precedence, null, indentDepth
@@ -712,7 +755,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
     # for semicolons.
     wrapSemicolonLine: (firstBounds, lastBounds, expressions, depth) ->
       # Make the wrapper
-      block = new model.Block 0, 'command', false
+      block = new model.Block 0, 'command', ANY_DROP
 
       # Put together a boundary that contains all things
       surroundingBounds =
@@ -790,7 +833,11 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
           throw firstError
 
   fixCoffeeScriptError = (lines, e) ->
-    console.log 'encountered error', e.message
+    console.log 'encountered error', e.message, 'line',  e.location?.first_line
+    if /unexpected\s*(?:newline|if|for|while|switch|unless|end of input)/.test(
+        e.message) and /^\s*(?:if|for|while|unless)\s+\S+/.test(
+        lines[e.location.first_line])
+      return addEmptyBackTickLineAfter lines, e.location.first_line
     if /unexpected/.test(e.message)
       return backTickLine lines, e.location.first_line
 
@@ -827,7 +874,7 @@ define ['ice-helper', 'ice-model', 'ice-parser', 'coffee-script'], (helper, mode
     # If we are all spaces then fail.
     if not leading or leading[0].length >= lines[n].length
       return false
-    lines.splice n + 1, 0, leading[0] + '``'
+    lines.splice n + 1, 0, leading[0] + '  ``'
 
   exports.parse = (text, opts) ->
     opts ?= wrapAtRoot: true
