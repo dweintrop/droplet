@@ -810,8 +810,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   # On resize, we will want to size the drag canvas correctly.
   hook 'resize', 0, ->
-    @dragCanvas.width = screen.width * 2
-    @dragCanvas.height = screen.height * 2
+    @dragCanvas.width = 0
+    @dragCanvas.height = 0
 
     @highlightCanvas.width = @iceElement.offsetWidth
     @highlightCanvas.style.width = "#{@highlightCanvas.width}px"
@@ -830,6 +830,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'mousedown', 1, (point, event, state) ->
     # If someone else has already taken this click, pass.
     if state.consumedHitTest then return
+
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
 
     # Hit test against the tree.
     mainPoint = @trackerPointToMain(point)
@@ -905,13 +908,26 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
         @draggingBlock = @draggingBlock.clone()
 
-        # Notice that since this block effectively
-        # came from nowhere, no undo operation
-        # is needed to destroy it.
-
       else
-        @draggingOffset = @view.getViewNodeFor(@draggingBlock).bounds[0].upperLeftCorner().from(
-          @trackerPointToMain(@clickedPoint))
+        # Find the line on the block that we have
+        # actually clicked, and attempt to translate the block
+        # so that if it re-shapes, we're still touching it.
+        #
+        # To do this, we will assume that the left edge of a free
+        # block are all aligned.
+        mainPoint = @trackerPointToMain @clickedPoint
+        viewNode = @view.getViewNodeFor @draggingBlock
+
+        @draggingOffset = null
+
+        for bound, line in viewNode.bounds
+          if bound.contains mainPoint
+            @draggingOffset = bound.upperLeftCorner().from mainPoint
+            @draggingOffset.y += viewNode.bounds[0].y - bound.y
+            break
+
+        unless @draggingOffset?
+          @draggingOffset = viewNode.bounds[0].upperLeftCorner().from mainPoint
 
       @draggingBlock.ephemeral = true
       @draggingBlock.clearLineMarks()
@@ -923,6 +939,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # so that we can see its borders.
       draggingBlockView = @dragView.getViewNodeFor @draggingBlock
       draggingBlockView.layout 1, 1
+
+      @dragCanvas.width = Math.min draggingBlockView.totalBounds.width + 10, window.screen.width
+      @dragCanvas.height = Math.min draggingBlockView.totalBounds.height + 10, window.screen.height
+
       draggingBlockView.drawShadow @dragCtx, 5, 5
       draggingBlockView.draw @dragCtx, new @draw.Rectangle 0, 0, @dragCanvas.width, @dragCanvas.height
 
@@ -998,7 +1018,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         head = head.next
 
       if head is @tree.end and
-          @mainCanvas.width + @scrollOffsets.main.x > mainPoint.x > @scrollOffsets.main.x and
+          @mainCanvas.width + @scrollOffsets.main.x > mainPoint.x > @scrollOffsets.main.x - @gutter.offsetWidth and
           @mainCanvas.height + @scrollOffsets.main.y > mainPoint.y > @scrollOffsets.main.y
         @view.getViewNodeFor(@tree).highlightArea.draw @highlightCtx
         @lastHighlight = @tree
@@ -1265,6 +1285,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # If someone else has already taken this click, pass.
     if state.consumedHitTest then return
 
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
+
     # Hit test against floating blocks
     for record, i in @floatingBlocks
       hitTestResult = @hitTest @trackerPointToMain(point), record.block
@@ -1403,21 +1426,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         for event in editorBindings.set_palette
           event.call this
 
-
-  # The palette hierarchical menu is on top of the track div
-  # so that we can click it. However, we do not want this to happen
-  # when we are dragging something. So:
-  hook 'mousedown', 0, ->
-    @paletteHeader.style.zIndex = 0
-
-  hook 'mouseup', 0, ->
-    @paletteHeader.style.zIndex = 257
-
   # The next thing we need to do with the palette
   # is let people pick things up from it.
   hook 'mousedown', 6, (point, event, state) ->
     # If someone else has already taken this click, pass.
     if state.consumedHitTest then return
+
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
 
     palettePoint = @trackerPointToPalette point
     if @scrollOffsets.palette.y < palettePoint.y < @scrollOffsets.palette.y + @paletteCanvas.height and
@@ -1889,6 +1905,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # If someone else already took this click, return.
     if state.consumedHitTest then return
 
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
+
     # Otherwise, look for a socket that
     # the user has clicked
     mainPoint = @trackerPointToMain point
@@ -2082,6 +2101,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     if state.consumedHitTest or state.suppressLassoSelect then return
 
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
+
     # If the point was actually in the main canvas,
     # start a lasso select.
     mainPoint = @trackerPointToMain(point).from @scrollOffsets.main
@@ -2189,6 +2211,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # pick a selected segment up; check.
   hook 'mousedown', 3, (point, event, state) ->
     if state.consumedHitTest then return
+
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
 
     if @lassoSegment? and @hitTest(@trackerPointToMain(point), @lassoSegment)?
       @clickedBlock = @lassoSegment
@@ -3241,50 +3266,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @setFontSize_raw fontSize
     @resize()
 
-  # MUTATION BUTTON SUPPORT
-  # ================================
-
-  class MutationButtonOperation extends UndoOperation
-    constructor: (button) ->
-      @button = button.clone()
-      @location = button.getSerializedLocation()
-
-    undo: (editor) ->
-      end = start = editor.tree.getTokenAtLocation(@location)
-
-      # We want to scan (n) tokens forward, where
-      # (n) is the length of the expanded value
-      # of this token.
-      head = @button.expandValue.start.next
-      until head is @button.expandValue.end
-        head = head.next; end = end.next
-
-      # Splice the original button in.
-      start.prev.append(button = @button.clone()).append end
-
-      return button
-
-    redo: (editor) ->
-      editor.tree.getTokenAtLocation(@location).expand()
-
-  hook 'mousedown', 4, (point, event, state) ->
-    if state.consumedHitTest then return
-
-    mainPoint = @trackerPointToMain point
-
-    head = @tree.start
-    until head is @tree.end
-      if head.type is 'mutationButton' and @view.getViewNodeFor(head).bounds[0].contains mainPoint
-        @addMicroUndoOperation new MutationButtonOperation head
-        head.expand() #MUTATION
-
-        @redrawMain()
-        state.consumedHitTest = true
-
-        return
-
-      head = head.next
-
   # LINE MARKING SUPPORT
   # ================================
 
@@ -3492,14 +3473,12 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'mousedown', -1, ->
     if @clickedBlock?
       @dragCover.style.display = 'block'
-      @dragCanvas.style.zIndex = 300
 
   # On mouseup, throw the drag canvas away completely.
   hook 'mouseup', 0, ->
     @dragCanvas.style.top =
       @dragCanvas.style.left = '-9999px'
 
-    @dragCanvas.style.zIndex = 0
     @dragCover.style.display = 'none'
 
   # TOUCHSCREEN SUPPORT
