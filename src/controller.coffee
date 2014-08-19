@@ -2121,19 +2121,48 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       @clearLassoSelectCanvas()
 
-      # (draw the lasso rectangle)
-      topLeftCorner = new @draw.Point(
-        Math.min(@lassoSelectAnchor.x, mainPoint.x) - @scrollOffsets.main.x,
-        Math.min(@lassoSelectAnchor.y, mainPoint.y) - @scrollOffsets.main.y
-      )
-
-      size = new @draw.Size(
+      lassoRectangle = new @draw.Rectangle(
+        Math.min(@lassoSelectAnchor.x, mainPoint.x),
+        Math.min(@lassoSelectAnchor.y, mainPoint.y),
         Math.abs(@lassoSelectAnchor.x - mainPoint.x),
         Math.abs(@lassoSelectAnchor.y - mainPoint.y)
       )
 
+      first = @tree.start
+      until (not first?) or first.type is 'blockStart' and @view.getViewNodeFor(first.container).path.intersects lassoRectangle
+        first = first.next
+
+      last = @tree.end
+      until (not last?) or last.type is 'blockEnd' and @view.getViewNodeFor(last.container).path.intersects lassoRectangle
+        last = last.prev
+
+      @clearLassoSelectCanvas(); @clearHighlightCanvas()
+
+      if first and last?
+        [first, last] = validateLassoSelection @tree, first, last
+        @drawTemporaryLasso first, last
+
       @lassoSelectCtx.strokeStyle = '#00f'
-      @lassoSelectCtx.strokeRect topLeftCorner.x, topLeftCorner.y, size.width, size.height
+      @lassoSelectCtx.strokeRect lassoRectangle.x - @scrollOffsets.main.x,
+        lassoRectangle.y - @scrollOffsets.main.y,
+        lassoRectangle.width,
+        lassoRectangle.height
+
+
+  Editor::drawTemporaryLasso = (first, last) ->
+    mainCanvasRectangle = new @draw.Rectangle(
+      @scrollOffsets.main.x,
+      @scrollOffsets.main.y,
+      @mainCanvas.width,
+      @mainCanvas.height
+    )
+    head = first
+    until head is last
+      if head instanceof model.StartToken
+        @view.getViewNodeFor(head.container).draw @highlightCtx, mainCanvasRectangle, {selected: Infinity}
+        head = head.container.end
+      else
+        head = head.next
 
   # Convnience function for validating
   # a lasso selection. A lasso selection
@@ -2203,7 +2232,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @addMicroUndoOperation new CreateSegmentOperation @lassoSegment
 
       # Move the cursor to the segment we just created
-      @moveCursorTo @lassoSegment.end, true
+      @moveCursorTo @lassoSegment.end.next, true
 
       @redrawMain()
 
@@ -2273,8 +2302,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @redrawHighlights()
 
   Editor::moveCursorUp = ->
-    # Seek the place we want to move the cursor
-    head = @cursor.prev?.prev
+    unless @cursor.prev? then return
+    @cursor = @cursor.prev
 
     @highlightFlashShow()
 
@@ -2470,7 +2499,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @keyListener.register_combo
       keys: 'shift'
       on_keydown: => @shiftKeyPressed = true
-      on_keyup: => @shiftKeyPressed = false
+      on_keyup: => @shiftKeyPressd = false
 
     @keyListener.register_combo
       keys: 'enter'
@@ -2584,109 +2613,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     return null
 
-  # INDENT CREATE/DESTROY SUPPORT
-  # ================================
-
-  ###
-  # CreateIndent undo operation
-  class CreateIndentOperation extends UndoOperation
-    constructor: (pos, @depth) ->
-      @location = pos.getSerializedLocation()
-
-    undo: (editor) ->
-      indent = editor.tree.getTokenAtLocation(@location).indent
-      indent.start.prev.append indent.end.next; indent.notifyChange()
-
-    redo: (editor) ->
-      head = editor.tree.getTokenAtLocation(@location)
-
-      newIndent = new model.Indent DEFAULT_INDENT_DEPTH
-      head.prev.append(newIndent.start)
-               .append(new model.NewlineToken())
-               .append(newIndent.end)
-               .append(head)
-
-  # DestroyIndent undo operation
-  class DestroyIndentOperation extends UndoOperation
-    constructor: (indent) ->
-      @location = indent.start.getSerializedLocation()
-      @indent = indent.clone()
-
-    undo: (editor) ->
-      head = editor.tree.getTokenAtLocation(@location)
-
-      newIndent = @indent.clone()
-      head.prev.append newIndent.start
-      newIndent.end.append head
-
-      newIndent.notifyChange()
-
-    redo: (editor) ->
-      indent = editor.tree.getTokenAtLocation(@location).indent
-      indent.start.prev.append indent.end.next; indent.notifyChange()
-
-  # If we press tab while we are editing
-  # a handwritten block, we create and indent.
-  hook 'key.tab', 0, ->
-    if @textFocus? and @textFocus.handwritten
-      @addMicroUndoOperation 'CAPTURE_POINT'
-
-      # Seek the block directly before this
-      head = @textFocus.start
-      until head.type is 'blockEnd'
-        head = head.prev
-
-      # If it ends in an indent,
-      # move this block to that indent.
-      if head.prev.type is 'indentEnd'
-        until head.type in ['blockEnd', 'indentStart']
-          head = head.prev
-
-      # Otherwise, create an indent right before this.
-      else
-        @addMicroUndoOperation new CreateIndentOperation head, DEFAULT_INDENT_DEPTH
-
-        newIndent = new model.Indent DEFAULT_INDENT_DEPTH
-        newIndent.start.append(new model.NewlineToken()).append newIndent.end
-        newIndent.spliceIn head.prev
-        newIndent.notifyChange()
-
-        head = newIndent.start
-
-      # Go through the motions of moving this block into
-      # the indent we have just found.
-      @addMicroUndoOperation new PickUpOperation @textFocus.start.prev.container
-      @textFocus.start.prev.container.spliceOut() #MUTATION
-
-      @addMicroUndoOperation new DropOperation @textFocus.start.prev.container, head
-      @textFocus.start.prev.container.spliceIn head #MUTATION
-
-      # Move the cursor up to where the block now is.
-      @moveCursorTo @textFocus.start.prev.container.end
-
-      @redrawMain()
-
-  # If we press backspace at the start of an empty
-  # indent (an indent containing only whitespace),
-  # delete that indent.
-  hook 'key.backspace', 0, (state) ->
-    if state.capturedBackspace then return
-
-    if  not @textFocus? and
-        @cursor.prev?.prev?.type is 'indentStart' and
-        (indent = @cursor.prev.prev.indent).stringify().trim().length is 0
-
-      @addMicroUndoOperation new DestroyIndentOperation indent
-      indent.notifyChange()
-
-      indent.start.prev.append indent.end.next #MUTATION
-
-      @moveCursorTo indent.end.next
-
-      state.capturedBackspace = true
-
-      @redrawMain()
-  ###
 
   # ANIMATION AND ACE EDITOR SUPPORT
   # ================================
@@ -3827,7 +3753,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           @addMicroUndoOperation new DropOperation blocks, @cursor.previousVisibleToken()
 
-          blocks.spliceIn @cursor
+          blocks.spliceIn @getCursorSpliceArea()
           unless blocks.end.nextVisibleToken().type in ['newline', 'indentEnd']
             blocks.end.insert new model.NewlineToken()
 
