@@ -50,12 +50,14 @@ tilde:"~",accent:"`",scroll_lock:"scroll",num_lock:"num"};r={"/":"?",".":">",","
     exports.ENCOURAGED = 0;
     exports.DISCOURAGED = 1;
     exports.FORBIDDEN = 2;
-    window.String.prototype.trimLeft = function() {
-      return this.replace(/^\s+/, '');
-    };
-    window.String.prototype.trimRight = function() {
-      return this.replace(/\s+$/, '');
-    };
+    if (typeof window !== "undefined" && window !== null) {
+      window.String.prototype.trimLeft = function() {
+        return this.replace(/^\s+/, '');
+      };
+      window.String.prototype.trimRight = function() {
+        return this.replace(/\s+$/, '');
+      };
+    }
     fontMetricsCache = {};
     exports.fontMetrics = fontMetrics = function(fontFamily, fontHeight) {
       var baseline, canvas, capital, ctx, ex, fontStyle, gp, height, lf, metrics, result, textTopAndBottom, width;
