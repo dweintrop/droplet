@@ -15,6 +15,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   MAX_DROP_DISTANCE = 100
   CURSOR_WIDTH_DECREASE = 3
   CURSOR_HEIGHT_DECREASE = 2
+  CURSOR_UNFOCUSED_OPACITY = 0.5
 
   ANY_DROP = helper.ANY_DROP
   BLOCK_ONLY = helper.BLOCK_ONLY
@@ -222,33 +223,39 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       # ## Tracker Events
       # We allow binding to the tracker element.
+      dispatchEvent = (event) =>
+        # ignore mouse clicks that are not the left-button, and ignore
+        # them if they are on the scrollbars
+        if event.type in ['mousedown', 'dblclick', 'mouseup']
+          if event.which isnt 1 then return
+
+        trackPoint = @getPointRelativeToTracker event
+
+        # We keep a state object so that handlers
+        # can know about each other.
+        state = {}
+
+        # Call all the handlers.
+        for handler in editorBindings[event.type]
+          handler.call this, trackPoint, event, state
+
+        # Stop event propagation so that
+        # we don't get bad selections
+        event.stopPropagation?()
+        event.preventDefault?()
+
+        event.cancelBubble = true
+        event.returnValue = false
+
+        return false
+
       for eventName, elements of {
           mousedown: [@iceElement, @paletteElement, @dragCover]
           dblclick: [@iceElement, @paletteElement, @dragCover]
           mouseup: [window]
           mousemove: [window] } then do (eventName, elements) =>
-
         for element in elements
-          element.addEventListener eventName, (event) =>
-            trackPoint = @getPointRelativeToTracker event
-
-            # We keep a state object so that handlers
-            # can know about each other.
-            state = {}
-
-            # Call all the handlers.
-            for handler in editorBindings[eventName]
-              handler.call this, trackPoint, event, state
-
-            # Stop event propagation so that
-            # we don't get bad selections
-            event.stopPropagation?()
-            event.preventDefault?()
-
-            event.cancelBubble = true
-            event.returnValue = false
-
-            return false
+          element.addEventListener eventName, dispatchEvent
 
       # ## Document initialization
       # We start of with an empty document
@@ -259,6 +266,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       # Now that we've populated everything, immediately re@draw.
       @redrawMain(); @redrawPalette()
+
+      return this
 
     # ## Foundational Resize
     # At the editor core, we will need to resize
@@ -497,27 +506,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # get its coordinates relative to the tracker element.
 
   Editor::getPointRelativeToTracker = (event) ->
-    # There are two cases we have to deal
-    # with here for browser compatability.
-
-    # The first is Chrome and Safari.
-    if event.offsetX?
-      # We want this point relative to the tracker element.
-      point = new @draw.Point event.offsetX, event.offsetY
-
-    # The second is Firefox.
-    else
-      point = new @draw.Point event.layerX, event.layerY
-
-    # Now, we want to get this point relative to the tracker element,
-    # so we need to bubble up its parents until we reach it.
-    offsetPoint = @trackerOffset event.target
-
-    # Now we're done.
-    return new @draw.Point(
-      point.x + offsetPoint.x,
-      point.y + offsetPoint.y
-    )
+    return new @draw.Point(event.pageX, event.pageY)
 
   Editor::absoluteOffset = (el) ->
     point = new @draw.Point el.offsetLeft, el.offsetTop
@@ -563,22 +552,18 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # Convert a point relative to the tracker into
   # a point relative to one of the two canvases.
   Editor::trackerPointToMain = (point) ->
-    new @draw.Point(
-      point.x - @trackerOffset(@mainCanvas).x + @scrollOffsets.main.x
-      point.y - @trackerOffset(@mainCanvas).y + @scrollOffsets.main.y
-    )
+    if not @mainCanvas.offsetParent?
+      return new @draw.Point(NaN, NaN)
+    gbr = @mainCanvas.getBoundingClientRect()
+    new @draw.Point(point.x - gbr.left + @scrollOffsets.main.x,
+                    point.y - gbr.top + @scrollOffsets.main.y)
 
   Editor::trackerPointToPalette = (point) ->
     if not @paletteCanvas.offsetParent?
-      return new @draw.Point(
-        NaN,
-        NaN
-      )
-
-    new @draw.Point(
-      point.x - @trackerOffset(@paletteCanvas).x + @scrollOffsets.palette.x,
-      point.y - @trackerOffset(@paletteCanvas).y + @scrollOffsets.palette.y
-    )
+      return new @draw.Point(NaN, NaN)
+    gbr = @paletteCanvas.getBoundingClientRect()
+    new @draw.Point(point.x - gbr.left + @scrollOffsets.palette.x,
+                    point.y - gbr.top + @scrollOffsets.palette.y)
 
   # ### hitTest
   # Simple function for going through a linked-list block
@@ -810,8 +795,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   # On resize, we will want to size the drag canvas correctly.
   hook 'resize', 0, ->
-    @dragCanvas.width = screen.width * 2
-    @dragCanvas.height = screen.height * 2
+    @dragCanvas.width = 0
+    @dragCanvas.height = 0
 
     @highlightCanvas.width = @iceElement.offsetWidth
     @highlightCanvas.style.width = "#{@highlightCanvas.width}px"
@@ -830,6 +815,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'mousedown', 1, (point, event, state) ->
     # If someone else has already taken this click, pass.
     if state.consumedHitTest then return
+
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
 
     # Hit test against the tree.
     mainPoint = @trackerPointToMain(point)
@@ -905,13 +893,26 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
         @draggingBlock = @draggingBlock.clone()
 
-        # Notice that since this block effectively
-        # came from nowhere, no undo operation
-        # is needed to destroy it.
-
       else
-        @draggingOffset = @view.getViewNodeFor(@draggingBlock).bounds[0].upperLeftCorner().from(
-          @trackerPointToMain(@clickedPoint))
+        # Find the line on the block that we have
+        # actually clicked, and attempt to translate the block
+        # so that if it re-shapes, we're still touching it.
+        #
+        # To do this, we will assume that the left edge of a free
+        # block are all aligned.
+        mainPoint = @trackerPointToMain @clickedPoint
+        viewNode = @view.getViewNodeFor @draggingBlock
+
+        @draggingOffset = null
+
+        for bound, line in viewNode.bounds
+          if bound.contains mainPoint
+            @draggingOffset = bound.upperLeftCorner().from mainPoint
+            @draggingOffset.y += viewNode.bounds[0].y - bound.y
+            break
+
+        unless @draggingOffset?
+          @draggingOffset = viewNode.bounds[0].upperLeftCorner().from mainPoint
 
       @draggingBlock.ephemeral = true
       @draggingBlock.clearLineMarks()
@@ -923,6 +924,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # so that we can see its borders.
       draggingBlockView = @dragView.getViewNodeFor @draggingBlock
       draggingBlockView.layout 1, 1
+
+      @dragCanvas.width = Math.min draggingBlockView.totalBounds.width + 10, window.screen.width
+      @dragCanvas.height = Math.min draggingBlockView.totalBounds.height + 10, window.screen.height
+
       draggingBlockView.drawShadow @dragCtx, 5, 5
       draggingBlockView.draw @dragCtx, new @draw.Rectangle 0, 0, @dragCanvas.width, @dragCanvas.height
 
@@ -984,8 +989,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         point.y + @draggingOffset.y
       )
 
-      @dragCanvas.style.top = "#{position.y + getOffsetTop(@iceElement)}px"
-      @dragCanvas.style.left = "#{position.x + getOffsetLeft(@iceElement)}px"
+      @dragCanvas.style.top = "#{position.y}px"
+      @dragCanvas.style.left = "#{position.x}px"
 
       mainPoint = @trackerPointToMain(position)
 
@@ -998,7 +1003,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         head = head.next
 
       if head is @tree.end and
-          @mainCanvas.width + @scrollOffsets.main.x > mainPoint.x > @scrollOffsets.main.x and
+          @mainCanvas.width + @scrollOffsets.main.x > mainPoint.x > @scrollOffsets.main.x - @gutter.offsetWidth and
           @mainCanvas.height + @scrollOffsets.main.y > mainPoint.y > @scrollOffsets.main.y
         @view.getViewNodeFor(@tree).highlightArea.draw @highlightCtx
         @lastHighlight = @tree
@@ -1011,7 +1016,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           w: MAX_DROP_DISTANCE * 2
           h: MAX_DROP_DISTANCE * 2
         }, (point) =>
-          unless (point.acceptLevel is helper.DISCOURAGED) and not @shiftKeyPressed
+          unless (point.acceptLevel is helper.DISCOURAGED) and not event.shiftKey
             distance = mainPoint.from(point)
             distance.y *= 2; distance = distance.magnitude()
             if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE and
@@ -1265,6 +1270,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # If someone else has already taken this click, pass.
     if state.consumedHitTest then return
 
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
+
     # Hit test against floating blocks
     for record, i in @floatingBlocks
       hitTestResult = @hitTest @trackerPointToMain(point), record.block
@@ -1340,30 +1348,32 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # Create the element itself
       paletteGroupHeader = document.createElement 'div'
       paletteGroupHeader.className = 'ice-palette-group-header'
-      paletteGroupHeader.innerText = paletteGroupHeader.textContent = paletteGroup.name # innerText and textContent for FF compatability
+      paletteGroupHeader.innerText = paletteGroupHeader.textContent = paletteGroupHeader.textContent = paletteGroup.name # innerText and textContent for FF compatability
       if paletteGroup.color
         paletteGroupHeader.className += ' ' + paletteGroup.color
 
       paletteHeaderRow.appendChild paletteGroupHeader
 
-      newPaletteGroup = []
+      newPaletteBlocks = []
 
       # Parse all the blocks in this palette and clone them
       for data in paletteGroup.blocks
         newBlock = coffee.parse(data.block).start.next.container
         newBlock.spliceOut(); newBlock.parent = null
-        newPalette.group.push {
+        newPaletteBlocks.push {
           block: newBlock
           title: data.title
         }
+
+      paletteGroupBlocks = newPaletteBlocks
 
       # When we click this element,
       # we should switch to it in the palette.
       clickHandler = =>
         # Record that we are the selected group now
         @currentPaletteGroup = paletteGroup.name
-        @currentPaletteBlocks = paletteGroup.blocks.map (x) -> x.block
-        @currentPaletteMetadata = paletteGroup.blocks
+        @currentPaletteBlocks = paletteGroupBlocks.map (x) -> x.block
+        @currentPaletteMetadata = paletteGroupBlocks
 
         # Unapply the "selected" style to the current palette group header
         @currentPaletteGroupHeader.className =
@@ -1389,8 +1399,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       # If we are the first element, make us the selected palette group.
       if i is 0
         @currentPaletteGroup = paletteGroup.name
-        @currentPaletteBlocks = paletteGroup.blocks.map (x) -> x.block
-        @currentPaletteMetadata = paletteGroup.blocks
+        @currentPaletteBlocks = paletteGroupBlocks.map (x) -> x.block
+        @currentPaletteMetadata = paletteGroupBlocks
         @currentPaletteGroupHeader = paletteGroupHeader
 
         # Apply the "selected" style to us
@@ -1401,21 +1411,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         for event in editorBindings.set_palette
           event.call this
 
-
-  # The palette hierarchical menu is on top of the track div
-  # so that we can click it. However, we do not want this to happen
-  # when we are dragging something. So:
-  hook 'mousedown', 0, ->
-    @paletteHeader.style.zIndex = 0
-
-  hook 'mouseup', 0, ->
-    @paletteHeader.style.zIndex = 257
-
   # The next thing we need to do with the palette
   # is let people pick things up from it.
   hook 'mousedown', 6, (point, event, state) ->
     # If someone else has already taken this click, pass.
     if state.consumedHitTest then return
+
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
 
     palettePoint = @trackerPointToPalette point
     if @scrollOffsets.palette.y < palettePoint.y < @scrollOffsets.palette.y + @paletteCanvas.height and
@@ -1900,6 +1903,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       hitTestResult = @hitTestTextInput mainPoint, @tree
 
     if hitTestResult?
+      @hiddenInput.focus()
+
       unless hitTestResult is @textFocus
         @setTextInputFocus hitTestResult
         @redrawMain()
@@ -2080,6 +2085,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     if state.consumedHitTest or state.suppressLassoSelect then return
 
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
+
     # If the point was actually in the main canvas,
     # start a lasso select.
     mainPoint = @trackerPointToMain(point).from @scrollOffsets.main
@@ -2097,19 +2105,48 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       @clearLassoSelectCanvas()
 
-      # (draw the lasso rectangle)
-      topLeftCorner = new @draw.Point(
-        Math.min(@lassoSelectAnchor.x, mainPoint.x) - @scrollOffsets.main.x,
-        Math.min(@lassoSelectAnchor.y, mainPoint.y) - @scrollOffsets.main.y
-      )
-
-      size = new @draw.Size(
+      lassoRectangle = new @draw.Rectangle(
+        Math.min(@lassoSelectAnchor.x, mainPoint.x),
+        Math.min(@lassoSelectAnchor.y, mainPoint.y),
         Math.abs(@lassoSelectAnchor.x - mainPoint.x),
         Math.abs(@lassoSelectAnchor.y - mainPoint.y)
       )
 
+      first = @tree.start
+      until (not first?) or first.type is 'blockStart' and @view.getViewNodeFor(first.container).path.intersects lassoRectangle
+        first = first.next
+
+      last = @tree.end
+      until (not last?) or last.type is 'blockEnd' and @view.getViewNodeFor(last.container).path.intersects lassoRectangle
+        last = last.prev
+
+      @clearLassoSelectCanvas(); @clearHighlightCanvas()
+
+      if first and last?
+        [first, last] = validateLassoSelection @tree, first, last
+        @drawTemporaryLasso first, last
+
       @lassoSelectCtx.strokeStyle = '#00f'
-      @lassoSelectCtx.strokeRect topLeftCorner.x, topLeftCorner.y, size.width, size.height
+      @lassoSelectCtx.strokeRect lassoRectangle.x - @scrollOffsets.main.x,
+        lassoRectangle.y - @scrollOffsets.main.y,
+        lassoRectangle.width,
+        lassoRectangle.height
+
+
+  Editor::drawTemporaryLasso = (first, last) ->
+    mainCanvasRectangle = new @draw.Rectangle(
+      @scrollOffsets.main.x,
+      @scrollOffsets.main.y,
+      @mainCanvas.width,
+      @mainCanvas.height
+    )
+    head = first
+    until head is last
+      if head instanceof model.StartToken
+        @view.getViewNodeFor(head.container).draw @highlightCtx, mainCanvasRectangle, {selected: Infinity}
+        head = head.container.end
+      else
+        head = head.next
 
   # Convnience function for validating
   # a lasso selection. A lasso selection
@@ -2179,7 +2216,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @addMicroUndoOperation new CreateSegmentOperation @lassoSegment
 
       # Move the cursor to the segment we just created
-      @moveCursorTo @lassoSegment.end, true
+      @moveCursorTo @lassoSegment.end.next, true
 
       @redrawMain()
 
@@ -2187,6 +2224,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # pick a selected segment up; check.
   hook 'mousedown', 3, (point, event, state) ->
     if state.consumedHitTest then return
+
+    # If it's not a left-click, pass.
+    if event.which isnt 1 then return
 
     if @lassoSegment? and @hitTest(@trackerPointToMain(point), @lassoSegment)?
       @clickedBlock = @lassoSegment
@@ -2246,7 +2286,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @redrawHighlights()
 
   Editor::moveCursorUp = ->
-    # Seek the place we want to move the cursor
+    unless @cursor.prev? then return
     head = @cursor.prev?.prev
 
     @highlightFlashShow()
@@ -2334,8 +2374,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     return head.container
 
-  hook 'key.tab', 0, ->
-    if @shiftKeyPressed
+  hook 'key.tab', 0, (state, event) ->
+    if event.shiftKey
       if @textFocus? then head = @textFocus.start
       else head = @cursor
 
@@ -2434,21 +2474,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'populate', 0, ->
     @handwrittenBlocks = []
 
-    @shiftKeyPressed = false
-
-    # Keep track of whether the shift
-    # key is pressed; it will
-    # suppress the normal "enter"
-    # handler.
-    @keyListener.register_combo
-      keys: 'shift'
-      on_keydown: => @shiftKeyPressed = true
-      on_keyup: => @shiftKeyPressed = false
-
     @keyListener.register_combo
       keys: 'enter'
-      on_keydown: =>
-        unless @textFocus? or @shiftKeyPressed
+      on_keydown: (event) =>
+        unless @textFocus? or event.shiftKey
           @setTextInputFocus null
 
           # Construct the block; flag the socket as handwritten
@@ -2476,7 +2505,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           @newHandwrittenSocket = newSocket
 
-        else if @textFocus? and not @shiftKeyPressed
+        else if @textFocus? and not event.shiftKey
           @setTextInputFocus null; @redrawMain()
         else
           return true
@@ -2557,109 +2586,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     return null
 
-  # INDENT CREATE/DESTROY SUPPORT
-  # ================================
-
-  ###
-  # CreateIndent undo operation
-  class CreateIndentOperation extends UndoOperation
-    constructor: (pos, @depth) ->
-      @location = pos.getSerializedLocation()
-
-    undo: (editor) ->
-      indent = editor.tree.getTokenAtLocation(@location).indent
-      indent.start.prev.append indent.end.next; indent.notifyChange()
-
-    redo: (editor) ->
-      head = editor.tree.getTokenAtLocation(@location)
-
-      newIndent = new model.Indent DEFAULT_INDENT_DEPTH
-      head.prev.append(newIndent.start)
-               .append(new model.NewlineToken())
-               .append(newIndent.end)
-               .append(head)
-
-  # DestroyIndent undo operation
-  class DestroyIndentOperation extends UndoOperation
-    constructor: (indent) ->
-      @location = indent.start.getSerializedLocation()
-      @indent = indent.clone()
-
-    undo: (editor) ->
-      head = editor.tree.getTokenAtLocation(@location)
-
-      newIndent = @indent.clone()
-      head.prev.append newIndent.start
-      newIndent.end.append head
-
-      newIndent.notifyChange()
-
-    redo: (editor) ->
-      indent = editor.tree.getTokenAtLocation(@location).indent
-      indent.start.prev.append indent.end.next; indent.notifyChange()
-
-  # If we press tab while we are editing
-  # a handwritten block, we create and indent.
-  hook 'key.tab', 0, ->
-    if @textFocus? and @textFocus.handwritten
-      @addMicroUndoOperation 'CAPTURE_POINT'
-
-      # Seek the block directly before this
-      head = @textFocus.start
-      until head.type is 'blockEnd'
-        head = head.prev
-
-      # If it ends in an indent,
-      # move this block to that indent.
-      if head.prev.type is 'indentEnd'
-        until head.type in ['blockEnd', 'indentStart']
-          head = head.prev
-
-      # Otherwise, create an indent right before this.
-      else
-        @addMicroUndoOperation new CreateIndentOperation head, DEFAULT_INDENT_DEPTH
-
-        newIndent = new model.Indent DEFAULT_INDENT_DEPTH
-        newIndent.start.append(new model.NewlineToken()).append newIndent.end
-        newIndent.spliceIn head.prev
-        newIndent.notifyChange()
-
-        head = newIndent.start
-
-      # Go through the motions of moving this block into
-      # the indent we have just found.
-      @addMicroUndoOperation new PickUpOperation @textFocus.start.prev.container
-      @textFocus.start.prev.container.spliceOut() #MUTATION
-
-      @addMicroUndoOperation new DropOperation @textFocus.start.prev.container, head
-      @textFocus.start.prev.container.spliceIn head #MUTATION
-
-      # Move the cursor up to where the block now is.
-      @moveCursorTo @textFocus.start.prev.container.end
-
-      @redrawMain()
-
-  # If we press backspace at the start of an empty
-  # indent (an indent containing only whitespace),
-  # delete that indent.
-  hook 'key.backspace', 0, (state) ->
-    if state.capturedBackspace then return
-
-    if  not @textFocus? and
-        @cursor.prev?.prev?.type is 'indentStart' and
-        (indent = @cursor.prev.prev.indent).stringify().trim().length is 0
-
-      @addMicroUndoOperation new DestroyIndentOperation indent
-      indent.notifyChange()
-
-      indent.start.prev.append indent.end.next #MUTATION
-
-      @moveCursorTo indent.end.next
-
-      state.capturedBackspace = true
-
-      @redrawMain()
-  ###
 
   # ANIMATION AND ACE EDITOR SUPPORT
   # ================================
@@ -2851,7 +2777,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         div = document.createElement 'div'
         div.style.whiteSpace = 'pre'
 
-        div.innerText = textElement.model.value
+        div.innerText = div.textContent = textElement.model.value
 
         div.style.font = @fontSize + 'px ' + @fontFamily
 
@@ -2882,7 +2808,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         div = document.createElement 'div'
         div.style.whiteSpace = 'pre'
 
-        div.innerText = line + 1
+        div.innerText = div.textContent = line + 1
 
         div.style.left = 0
         div.style.top = "#{treeView.bounds[line].y + treeView.distanceToBase[line].above - @view.opts.textHeight - @fontAscent - @scrollOffsets.main.y}px"
@@ -2917,11 +2843,13 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         @highlightCanvas.style.opacity =
         @cursorCanvas.style.opacity = 0
 
-      @iceElement.style.transition =
-        @paletteWrapper.style.transition = "left #{fadeTime}ms"
+      setTimeout (=>
+        @iceElement.style.transition =
+          @paletteWrapper.style.transition = "left #{translateTime}ms"
 
-      @iceElement.style.left = '0px'
-      @paletteWrapper.style.left = "#{-@paletteWrapper.offsetWidth}px"
+        @iceElement.style.left = '0px'
+        @paletteWrapper.style.left = "#{-@paletteWrapper.offsetWidth}px"
+      ), fadeTime
 
       setTimeout (=>
         # Translate the ICE editor div out of frame.
@@ -3014,7 +2942,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           div = document.createElement 'div'
           div.style.whiteSpace = 'pre'
 
-          div.innerText = textElement.model.value
+          div.innerText = div.textContent = textElement.model.value
 
           div.style.font = @aceFontSize() + ' ' + @fontFamily
           div.style.position = 'absolute'
@@ -3047,7 +2975,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           div = document.createElement 'div'
           div.style.whiteSpace = 'pre'
 
-          div.innerText = line + 1
+          div.innerText = div.textContent = line + 1
 
           div.style.font = @aceFontSize() + ' ' + @fontFamily
           div.style.width = "#{@aceEditor.renderer.$gutter.offsetWidth}px"
@@ -3075,7 +3003,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         setTimeout (=>
           for el in [@mainCanvas, @highlightCanvas, @cursorCanvas]
             el.style.transition = "opacity #{fadeTime}ms linear"
-            el.style.opacity = 1
+          @mainCanvas.style.opacity = 1
+          @highlightCanvas.style.opacity = 1
+
+          if @editorHasFocus()
+            @cursorCanvas.style.opacity = 1
+          else
+            @cursorCanvas.style.opacity = CURSOR_UNFOCUSED_OPACITY
+
         ), translateTime
 
         @iceElement.style.transition =
@@ -3112,7 +3047,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   Editor::toggleBlocks = (cb) ->
     if @currentlyUsingBlocks
-      return @performMeltAnimation 700, 500, cb
+      return @performMeltAnimation 500, 1000, cb
     else
       return @performFreezeAnimation 500, 500, cb
 
@@ -3238,50 +3173,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   Editor::setFontSize = (fontSize) ->
     @setFontSize_raw fontSize
     @resize()
-
-  # MUTATION BUTTON SUPPORT
-  # ================================
-
-  class MutationButtonOperation extends UndoOperation
-    constructor: (button) ->
-      @button = button.clone()
-      @location = button.getSerializedLocation()
-
-    undo: (editor) ->
-      end = start = editor.tree.getTokenAtLocation(@location)
-
-      # We want to scan (n) tokens forward, where
-      # (n) is the length of the expanded value
-      # of this token.
-      head = @button.expandValue.start.next
-      until head is @button.expandValue.end
-        head = head.next; end = end.next
-
-      # Splice the original button in.
-      start.prev.append(button = @button.clone()).append end
-
-      return button
-
-    redo: (editor) ->
-      editor.tree.getTokenAtLocation(@location).expand()
-
-  hook 'mousedown', 4, (point, event, state) ->
-    if state.consumedHitTest then return
-
-    mainPoint = @trackerPointToMain point
-
-    head = @tree.start
-    until head is @tree.end
-      if head.type is 'mutationButton' and @view.getViewNodeFor(head).bounds[0].contains mainPoint
-        @addMicroUndoOperation new MutationButtonOperation head
-        head.expand() #MUTATION
-
-        @redrawMain()
-        state.consumedHitTest = true
-
-        return
-
-      head = head.next
 
   # LINE MARKING SUPPORT
   # ================================
@@ -3490,14 +3381,12 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'mousedown', -1, ->
     if @clickedBlock?
       @dragCover.style.display = 'block'
-      @dragCanvas.style.zIndex = 300
 
   # On mouseup, throw the drag canvas away completely.
   hook 'mouseup', 0, ->
     @dragCanvas.style.top =
       @dragCanvas.style.left = '-9999px'
 
-    @dragCanvas.style.zIndex = 0
     @dragCover.style.display = 'none'
 
   # TOUCHSCREEN SUPPORT
@@ -3604,7 +3493,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # ================================
   hook 'populate', 0, ->
     @cursorCanvas = document.createElement 'canvas'
-    @cursorCanvas.className = 'ice-highlight-canvas'
+    @cursorCanvas.className = 'ice-highlight-canvas ice-cursor-canvas'
 
     @cursorCtx = @cursorCanvas.getContext '2d'
 
@@ -3655,16 +3544,39 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @highlightsCurrentlyShown = false
     @flashTimeout = setTimeout (=> @flash()), 500
 
+  Editor::editorHasFocus = ->
+    document.activeElement in [@iceElement, @hiddenInput, @copyPasteInput] and
+    document.hasFocus()
+
   Editor::flash = ->
     if @lassoSegment? or @draggingBlock? or
         (@textFocus? and @textInputHighlighted) or
-        not @highlightsCurrentlyShown
+        not @highlightsCurrentlyShown or
+        not @editorHasFocus()
       @highlightFlashShow()
     else
       @highlightFlashHide()
 
   hook 'populate', 0, ->
     @highlightsCurrentlyShown = false
+
+    blurCursors = =>
+      @highlightFlashShow()
+      @cursorCanvas.style.transition = ''
+      @cursorCanvas.style.opacity = CURSOR_UNFOCUSED_OPACITY
+
+    @iceElement.addEventListener 'blur', blurCursors
+    @hiddenInput.addEventListener 'blur', blurCursors
+    @copyPasteInput.addEventListener 'blur', blurCursors
+
+    focusCursors = =>
+      @highlightFlashShow()
+      @cursorCanvas.style.transition = ''
+      @cursorCanvas.style.opacity = 1
+
+    @iceElement.addEventListener 'focus', focusCursors
+    @hiddenInput.addEventListener 'focus', focusCursors
+    @copyPasteInput.addEventListener 'focus', focusCursors
 
     @flashTimeout = setTimeout (=> @flash()), 0
 
@@ -3732,7 +3644,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     else
       lineDiv = document.createElement 'div'
       lineDiv.className = 'ice-gutter-line'
-      lineDiv.innerText = line + 1
+      lineDiv.innerText = lineDiv.textContent = line + 1
 
       @lineNumberTags[line] = lineDiv
 
@@ -3787,7 +3699,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   # COPY AND PASTE
   # ================================
-  hook 'populate', 0, ->
+  hook 'populate', 1, ->
     @copyPasteInput = document.createElement 'textarea'
     @copyPasteInput.style.position = 'absolute'
     @copyPasteInput.style.left = @copyPasteInput.style.top = '-9999px'
@@ -3846,7 +3758,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           @addMicroUndoOperation new DropOperation blocks, @cursor.previousVisibleToken()
 
-          blocks.spliceIn @cursor
+          blocks.spliceIn @getCursorSpliceArea()
           unless blocks.end.nextVisibleToken().type in ['newline', 'indentEnd']
             blocks.end.insert new model.NewlineToken()
 
