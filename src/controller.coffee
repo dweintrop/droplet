@@ -222,33 +222,39 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       # ## Tracker Events
       # We allow binding to the tracker element.
+      dispatchEvent = (event) =>
+        # ignore mouse clicks that are not the left-button, and ignore
+        # them if they are on the scrollbars
+        if event.type in ['mousedown', 'dblclick', 'mouseup']
+          if event.which isnt 1 then return
+
+        trackPoint = @getPointRelativeToTracker event
+
+        # We keep a state object so that handlers
+        # can know about each other.
+        state = {}
+
+        # Call all the handlers.
+        for handler in editorBindings[event.type]
+          handler.call this, trackPoint, event, state
+
+        # Stop event propagation so that
+        # we don't get bad selections
+        event.stopPropagation?()
+        event.preventDefault?()
+
+        event.cancelBubble = true
+        event.returnValue = false
+
+        return false
+
       for eventName, elements of {
           mousedown: [@iceElement, @paletteElement, @dragCover]
           dblclick: [@iceElement, @paletteElement, @dragCover]
           mouseup: [window]
           mousemove: [window] } then do (eventName, elements) =>
-
         for element in elements
-          element.addEventListener eventName, (event) =>
-            trackPoint = @getPointRelativeToTracker event
-
-            # We keep a state object so that handlers
-            # can know about each other.
-            state = {}
-
-            # Call all the handlers.
-            for handler in editorBindings[eventName]
-              handler.call this, trackPoint, event, state
-
-            # Stop event propagation so that
-            # we don't get bad selections
-            event.stopPropagation?()
-            event.preventDefault?()
-
-            event.cancelBubble = true
-            event.returnValue = false
-
-            return false
+          element.addEventListener eventName, dispatchEvent
 
       # ## Document initialization
       # We start of with an empty document
@@ -497,27 +503,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # get its coordinates relative to the tracker element.
 
   Editor::getPointRelativeToTracker = (event) ->
-    # There are two cases we have to deal
-    # with here for browser compatability.
-
-    # The first is Chrome and Safari.
-    if event.offsetX?
-      # We want this point relative to the tracker element.
-      point = new @draw.Point event.offsetX, event.offsetY
-
-    # The second is Firefox.
-    else
-      point = new @draw.Point event.layerX, event.layerY
-
-    # Now, we want to get this point relative to the tracker element,
-    # so we need to bubble up its parents until we reach it.
-    offsetPoint = @trackerOffset event.target
-
-    # Now we're done.
-    return new @draw.Point(
-      point.x + offsetPoint.x,
-      point.y + offsetPoint.y
-    )
+    return new @draw.Point(event.pageX, event.pageY)
 
   Editor::absoluteOffset = (el) ->
     point = new @draw.Point el.offsetLeft, el.offsetTop
@@ -563,22 +549,18 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   # Convert a point relative to the tracker into
   # a point relative to one of the two canvases.
   Editor::trackerPointToMain = (point) ->
-    new @draw.Point(
-      point.x - @trackerOffset(@mainCanvas).x + @scrollOffsets.main.x
-      point.y - @trackerOffset(@mainCanvas).y + @scrollOffsets.main.y
-    )
+    if not @mainCanvas.offsetParent?
+      return new @draw.Point(NaN, NaN)
+    gbr = @mainCanvas.getBoundingClientRect()
+    new @draw.Point(point.x - gbr.left + @scrollOffsets.main.x,
+                    point.y - gbr.top + @scrollOffsets.main.y)
 
   Editor::trackerPointToPalette = (point) ->
     if not @paletteCanvas.offsetParent?
-      return new @draw.Point(
-        NaN,
-        NaN
-      )
-
-    new @draw.Point(
-      point.x - @trackerOffset(@paletteCanvas).x + @scrollOffsets.palette.x,
-      point.y - @trackerOffset(@paletteCanvas).y + @scrollOffsets.palette.y
-    )
+      return new @draw.Point(NaN, NaN)
+    gbr = @paletteCanvas.getBoundingClientRect()
+    new @draw.Point(point.x - gbr.left + @scrollOffsets.palette.x,
+                    point.y - gbr.top + @scrollOffsets.palette.y)
 
   # ### hitTest
   # Simple function for going through a linked-list block
@@ -1004,8 +986,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         point.y + @draggingOffset.y
       )
 
-      @dragCanvas.style.top = "#{position.y + getOffsetTop(@iceElement)}px"
-      @dragCanvas.style.left = "#{position.x + getOffsetLeft(@iceElement)}px"
+      @dragCanvas.style.top = "#{position.y}px"
+      @dragCanvas.style.left = "#{position.x}px"
 
       mainPoint = @trackerPointToMain(position)
 
@@ -1031,7 +1013,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           w: MAX_DROP_DISTANCE * 2
           h: MAX_DROP_DISTANCE * 2
         }, (point) =>
-          unless (point.acceptLevel is helper.DISCOURAGED) and not @shiftKeyPressed
+          unless (point.acceptLevel is helper.DISCOURAGED) and not event.shiftKey
             distance = mainPoint.from(point)
             distance.y *= 2; distance = distance.magnitude()
             if distance < min and mainPoint.from(point).magnitude() < MAX_DROP_DISTANCE and
@@ -1905,9 +1887,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # If someone else already took this click, return.
     if state.consumedHitTest then return
 
-    # If it's not a left-click, pass.
-    if event.which isnt 1 then return
-
     # Otherwise, look for a socket that
     # the user has clicked
     mainPoint = @trackerPointToMain point
@@ -2305,7 +2284,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   Editor::moveCursorUp = ->
     unless @cursor.prev? then return
-    @cursor = @cursor.prev
+    head = @cursor.prev?.prev
 
     @highlightFlashShow()
 
@@ -2392,8 +2371,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     return head.container
 
-  hook 'key.tab', 0, ->
-    if @shiftKeyPressed
+  hook 'key.tab', 0, (state, event) ->
+    if event.shiftKey
       if @textFocus? then head = @textFocus.start
       else head = @cursor
 
@@ -2492,21 +2471,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   hook 'populate', 0, ->
     @handwrittenBlocks = []
 
-    @shiftKeyPressed = false
-
-    # Keep track of whether the shift
-    # key is pressed; it will
-    # suppress the normal "enter"
-    # handler.
-    @keyListener.register_combo
-      keys: 'shift'
-      on_keydown: => @shiftKeyPressed = true
-      on_keyup: => @shiftKeyPressd = false
-
     @keyListener.register_combo
       keys: 'enter'
-      on_keydown: =>
-        unless @textFocus? or @shiftKeyPressed
+      on_keydown: (event) =>
+        unless @textFocus? or event.shiftKey
           @setTextInputFocus null
 
           # Construct the block; flag the socket as handwritten
@@ -2534,7 +2502,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           @newHandwrittenSocket = newSocket
 
-        else if @textFocus? and not @shiftKeyPressed
+        else if @textFocus? and not event.shiftKey
           @setTextInputFocus null; @redrawMain()
         else
           return true
@@ -3566,16 +3534,30 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @highlightsCurrentlyShown = false
     @flashTimeout = setTimeout (=> @flash()), 500
 
+  Editor::editorHasFocus = ->
+    document.activeElement in [@iceElement, @hiddenInput, @copyPasteInput] and
+    document.hasFocus()
+
   Editor::flash = ->
     if @lassoSegment? or @draggingBlock? or
         (@textFocus? and @textInputHighlighted) or
-        not @highlightsCurrentlyShown
+        not @highlightsCurrentlyShown or
+        not @editorHasFocus()
       @highlightFlashShow()
     else
       @highlightFlashHide()
 
   hook 'populate', 0, ->
     @highlightsCurrentlyShown = false
+    @iceElement.addEventListener 'blur', =>
+      @highlightFlashShow()
+      @cursorCanvas.style.transition = ''
+      @cursorCanvas.style.opacity = 0.5
+
+    @iceElement.addEventListener 'focus', =>
+      @highlightFlashShow()
+      @cursorCanvas.style.transition = ''
+      @cursorCanvas.style.opacity = 1
 
     @flashTimeout = setTimeout (=> @flash()), 0
 
