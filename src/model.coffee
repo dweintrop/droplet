@@ -20,6 +20,48 @@ define ['ice-helper'], (helper) ->
       get: get
       set: set
 
+  exports.isTreeValid = (tree) ->
+    tortise = hare = tree.start
+
+    while true
+      tortise = tortise.next
+
+      lastHare = hare
+      hare = hare.next
+      unless hare?
+        window._ice_debug_lastHare = lastHare
+        throw new Error 'Ran off the end of the document before EOF'
+      if lastHare isnt hare.prev
+        throw new Error 'Linked list is not properly bidirectional'
+      if hare is tree.end
+        break
+
+      lastHare = hare
+      hare = hare.next
+      unless hare?
+        window._ice_debug_lastHare = lastHare
+        throw new Error 'Ran off the end of the document before EOF'
+      if lastHare isnt hare.prev
+        throw new Error 'Linked list is not properly bidirectional'
+      if hare is tree.end
+        break
+
+      if tortise is hare
+        throw new Error 'Linked list loops'
+
+    stack = []; head = tree.start.next
+    until head is tree.end or head is null
+      if head instanceof StartToken
+        stack.push head.container
+      else if head instanceof EndToken
+        unless stack[stack.length - 1] is head.container
+          throw new Error "Stack does not align #{stack[stack.length - 1]?.type} != #{head.container?.type}"
+        else
+          stack.pop()
+      head = head.next
+
+    return true
+
   # Container
   # ==================
   # A generic XML-style container from which
@@ -53,6 +95,32 @@ define ['ice-helper'], (helper) ->
         head = head.parent
 
       return head is parent
+
+    getCommonParent: (other) ->
+      head = @
+      until other.hasParent head
+        head = head.parent
+
+      return head
+
+    hasCommonParent: (other) ->
+      head = @
+      until other.hasParent head
+        head = head.parent
+
+      return head?
+
+    rawReplace: (other) ->
+      if other.start.prev?
+        other.start.prev.append @start
+
+      if other.last.next?
+        @end.append other.last.next
+
+      @start.parent = @end.parent = @parent = other.parent
+
+      other.parent = other.start.parent = other.end.parent = null
+      other.start.prev = other.end.next = null
 
     # ## clone ##
     # Clone this container, with all the token inside,
@@ -355,6 +423,27 @@ define ['ice-helper'], (helper) ->
 
       @version = 0
 
+    hasParent: (parent) ->
+      head = @
+      until head in [parent, null]
+        head = head.parent
+
+      return head is parent
+
+    getCommonParent: (other) ->
+      head = @
+      until other.hasParent head
+        head = head.parent
+
+      return head
+
+    hasCommonParent: (other) ->
+      head = @
+      until other.hasParent head
+        head = head.parent
+
+      return head?
+
     # ## append ##
     # Link this token to another
     # in the linked list.
@@ -395,7 +484,7 @@ define ['ice-helper'], (helper) ->
     # linked list.
     remove: ->
       if @prev? then @prev.append @next
-      else @next.prev = null
+      else if @next? then @next.prev = null
 
       @prev = @next = @parent = null
 

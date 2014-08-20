@@ -54,42 +54,42 @@ require ['ice-model', 'ice-coffee', 'ice-view', 'ice'], (model, coffee, view, ic
       while a
         fd 10
       ''', '''
-      <block color="control" precedence="0">while <socket precedence="0">a</socket><indent depth="2">
+      <block color="control" precedence="-3">while <socket precedence="0">a</socket><indent depth="2">
       <block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></indent></block>
       '''
 
     testString 'One-line while statement',
       'while a then fd 10',
-      '<block color="control" precedence="0">while <socket precedence="0">a</socket> then <socket precedence="0"><block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></socket></block>'
+      '<block color="control" precedence="-3">while <socket precedence="0">a</socket> then <socket precedence="0"><block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></socket></block>'
 
     testString 'For-in, normal form',
       '''
       for i in list
         fd 10
       ''', '''
-      <block color="control" precedence="0">for <socket precedence="0">i</socket> in <socket precedence="0">list</socket><indent depth="2">
+      <block color="control" precedence="-3">for <socket precedence="0">i</socket> in <socket precedence="0">list</socket><indent depth="2">
       <block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></indent></block>
       '''
 
     testString 'One-line for-in',
       'for i in list then fd 10'
-      '<block color="control" precedence="0">for <socket precedence="0">i</socket> in <socket precedence="0">list</socket> then <socket precedence="0"><block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></socket></block>'
+      '<block color="control" precedence="-3">for <socket precedence="0">i</socket> in <socket precedence="0">list</socket> then <socket precedence="0"><block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></socket></block>'
 
     testString 'Inverted one-line for-in',
       'fd 10 for i in list',
-      '<block color="control" precedence="0"><socket precedence="0"><block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></socket> for <socket precedence="0">i</socket> in <socket precedence="0">list</socket></block>'
+      '<block color="control" precedence="-3"><socket precedence="0"><block color="command" precedence="0">fd <socket precedence="-1">10</socket></block></socket> for <socket precedence="0">i</socket> in <socket precedence="0">list</socket></block>'
 
     testString 'Semicolons at the root',
       'fd 10; bk 10',
-      '<block color="command" precedence="0"><socket precedence="0">'+
+      '<block color="command" precedence="-2"><socket precedence="-2">'+
       '<block color="command" precedence="0">fd <socket precedence="-1">10</socket></block>'+
-      '</socket>; <socket precedence="0">'+
+      '</socket>; <socket precedence="-2">'+
       '<block color="command" precedence="0">bk <socket precedence="-1">10</socket></block></socket></block>'
 
     testString 'Semicolons with one-line block',
       'if a then b; c else d',
       '<block color="control" precedence="0">if <socket precedence="0">a</socket> then <socket precedence="0">' +
-      '<block color="command" precedence="0"><socket precedence="0">b</socket>; <socket precedence="0">c</socket>' +
+      '<block color="command" precedence="-2"><socket precedence="-2">b</socket>; <socket precedence="-2">c</socket>' +
       '</block></socket> else <socket precedence="0">d</socket></block>'
 
     testString 'Semicolons in sequence',
@@ -99,11 +99,11 @@ require ['ice-model', 'ice-coffee', 'ice-view', 'ice'], (model, coffee, view, ic
         fd 10; bk 10
         see bye
       ''',
-      '<block color="control" precedence="0">while <socket precedence="0">a</socket><indent depth="2">\n' +
+      '<block color="control" precedence="-3">while <socket precedence="0">a</socket><indent depth="2">\n' +
       '<block color="command" precedence="0">see <socket precedence="-1">hi</socket></block>\n'+
-      '<block color="command" precedence="0"><socket precedence="0">'+
+      '<block color="command" precedence="-2"><socket precedence="-2">'+
       '<block color="command" precedence="0">fd <socket precedence="-1">10</socket></block>'+
-      '</socket>; <socket precedence="0">'+
+      '</socket>; <socket precedence="-2">'+
       '<block color="command" precedence="0">bk <socket precedence="-1">10</socket></block></socket></block>\n'+
       '<block color="command" precedence="0">see <socket precedence="-1">bye</socket></block></indent></block>'
 
@@ -209,8 +209,8 @@ require ['ice-model', 'ice-coffee', 'ice-view', 'ice'], (model, coffee, view, ic
 
     testString 'Parentheses around semicolon block',
       '(fd 10; bk 10)',
-      '<block color="command" precedence="0">(<socket precedence="0"><block color="command" precedence="0">' +
-      'fd <socket precedence="-1">10</socket></block></socket>; <socket precedence="0"><block color="command" precedence="0">' +
+      '<block color="command" precedence="-2">(<socket precedence="-2"><block color="command" precedence="0">' +
+      'fd <socket precedence="-1">10</socket></block></socket>; <socket precedence="-2"><block color="command" precedence="0">' +
       'bk <socket precedence="-1">10</socket></block></socket>)</block>'
 
 
@@ -378,8 +378,8 @@ require ['ice-model', 'ice-coffee', 'ice-view', 'ice'], (model, coffee, view, ic
     document.getBlockOnLine(1).moveTo document.getBlockOnLine(0).end.prev.container.start
 
     strictEqual document.stringify(), '''
-    console.log for i in [1..10]
-      console.log hello
+    console.log (for i in [1..10]
+      console.log hello)
     ''', 'Move for into socket (req. paren wrap)'
 
   test 'Paren wrap', ->
@@ -633,6 +633,7 @@ require ['ice-model', 'ice-coffee', 'ice-view', 'ice'], (model, coffee, view, ic
     expect 3
 
     states = []
+    document.getElementById('test-main').innerHTML = ''
     editor = new ice.Editor document.getElementById('test-main'), []
 
     editor.on 'statechange', (usingBlocks) ->
@@ -644,3 +645,102 @@ require ['ice-model', 'ice-coffee', 'ice-view', 'ice'], (model, coffee, view, ic
         strictEqual states[0], false
         strictEqual states[1], true
         start()
+
+
+  test 'Controller: cursor motion and rendering', ->
+    states = []
+    document.getElementById('test-main').innerHTML = ''
+    editor = new ice.Editor document.getElementById('test-main'), []
+
+    editor.setValue '''
+    fd 10
+    if a is b
+      fd 20
+      fd 30
+    else
+      fd 40
+    '''
+
+    strictEqual editor.determineCursorPosition().x, 0, 'Cursor position correct (x - down)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight, 'Cursor position correct (y - down)'
+
+    editor.moveCursorTo editor.cursor.next.next
+
+    strictEqual editor.determineCursorPosition().x, 0,
+      'Cursor position correct after \'fd 10\' (x - down)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      1 * editor.view.opts.textHeight +
+      2 * editor.view.opts.padding +
+      2 * editor.view.opts.textPadding, 'Cursor position correct after \'fd 10\' (y - down)'
+
+    editor.moveCursorTo editor.cursor.next.next
+
+    strictEqual editor.determineCursorPosition().x, editor.view.opts.indentWidth,
+      'Cursor position correct after \'if a is b\' (x - down)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      2 * editor.view.opts.textHeight +
+      6 * editor.view.opts.padding +
+      4 * editor.view.opts.textPadding, 'Cursor position correct after \'if a is b\' (y - down)'
+
+    editor.moveCursorTo editor.cursor.next.next
+
+    strictEqual editor.determineCursorPosition().x, editor.view.opts.indentWidth,
+      'Cursor position correct after \'fd 20\' (x - down)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      3 * editor.view.opts.textHeight +
+      8 * editor.view.opts.padding +
+      6 * editor.view.opts.textPadding, 'Cursor position correct after \'fd 20\' (y - down)'
+
+    editor.moveCursorTo editor.cursor.next.next
+
+    strictEqual editor.determineCursorPosition().x, editor.view.opts.indentWidth,
+      'Cursor position correct at end of indent (x - down)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      4 * editor.view.opts.textHeight +
+      10 * editor.view.opts.padding +
+      8 * editor.view.opts.textPadding, 'Cursor position at end of indent (y - down)'
+
+    editor.moveCursorTo editor.cursor.next.next
+
+    strictEqual editor.cursor.parent.type, 'indent', 'Cursor skipped middle of block'
+
+    editor.moveCursorUp()
+
+    strictEqual editor.determineCursorPosition().x, editor.view.opts.indentWidth,
+      'Cursor position correct at end of indent (x - up)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      4 * editor.view.opts.textHeight +
+      10 * editor.view.opts.padding +
+      8 * editor.view.opts.textPadding, 'Cursor position at end of indent (y - up)'
+
+    editor.moveCursorUp()
+
+    strictEqual editor.determineCursorPosition().x, editor.view.opts.indentWidth,
+      'Cursor position correct after \'fd 20\' (x - up)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      3 * editor.view.opts.textHeight +
+      8 * editor.view.opts.padding +
+      6 * editor.view.opts.textPadding, 'Cursor position correct after \'fd 20\' (y - up)'
+
+    editor.moveCursorUp()
+
+    strictEqual editor.determineCursorPosition().x, editor.view.opts.indentWidth,
+      'Cursor position correct after \'if a is b\' (y - up)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      2 * editor.view.opts.textHeight +
+      6 * editor.view.opts.padding +
+      4 * editor.view.opts.textPadding, 'Cursor position correct after \'if a is b\' (y - up)'
+
+    editor.moveCursorUp()
+
+    strictEqual editor.determineCursorPosition().x, 0,
+      'Cursor position correct after \'fd 10\' (x - up)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight +
+      1 * editor.view.opts.textHeight +
+      2 * editor.view.opts.padding +
+      2 * editor.view.opts.textPadding, 'Cursor position correct after \'fd 10\' (y - up)'
+
+    editor.moveCursorUp()
+
+    strictEqual editor.determineCursorPosition().x, 0, 'Cursor position correct at origin (x - up)'
+    strictEqual editor.determineCursorPosition().y, editor.nubbyHeight, 'Cursor position correct at origin (y - up)'

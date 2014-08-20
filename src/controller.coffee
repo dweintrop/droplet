@@ -16,6 +16,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   CURSOR_WIDTH_DECREASE = 3
   CURSOR_HEIGHT_DECREASE = 2
   CURSOR_UNFOCUSED_OPACITY = 0.5
+  DEBUG_FLAG = false
 
   ANY_DROP = helper.ANY_DROP
   BLOCK_ONLY = helper.BLOCK_ONLY
@@ -1120,32 +1121,38 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
             @addMicroUndoOperation new DropOperation @draggingBlock, @tree.start
             @draggingBlock.spliceIn @tree.start #MUTATION
 
-      if @lastHighlight.type is 'socket'
-        # Reparse the parent
-        try
-          parent = @draggingBlock.parent.parent
-          newBlock = coffee.parse(parent.stringify(), wrapAtRoot: true).start.next.container
-          if newBlock?.type is 'block'
-            parent.start.prev.append newBlock.start
-            newBlock.end.append parent.end.next
-
-            newBlock.parent = newBlock.start.parent = newBlock.end.parent =
-              parent.parent
-
-            @addMicroUndoOperation new ReparseOperation parent, newBlock
-
-      @redrawMain()
-
       # Move the cursor to the position we just
       # dropped the block
       @moveCursorTo @draggingBlock.end, true
 
-      # Now that we've done that, we can annul stuff.
-      @draggingBlock = null
-      @draggingOffset = null
-      @lastHighlight = null
+      # Reparse the parent if we are
+      # in a socket
+      #
+      # TODO "reparseable" property, bubble up
+      # TODO performance on large programs
+      if @lastHighlight.type is 'socket'
+        @reparseRawReplace @draggingBlock.parent.parent
 
-      @clearDrag()
+      # Now that we've done that, we can annul stuff.
+      @endDrag()
+
+  Editor::reparseRawReplace = (oldBlock) ->
+    try
+      newParse = coffee.parse(oldBlock.stringify(), wrapAtRoot: true)
+      newBlock = newParse.start.next.container
+      if newParse.start.next.container.end is newParse.end.prev and
+          newBlock?.type is 'block'
+        @addMicroUndoOperation new ReparseOperation parent, newBlock
+
+        if @cursor.hasParent oldBlock
+          pos = @getRecoverableCursorPosition()
+          newBlock.rawReplace oldBlock
+          @recoverCursorPosition pos
+        else
+          newBlock.rawReplace oldBlock
+
+    catch e
+      return false
 
   # FLOATING BLOCK SUPPORT
   # ================================
@@ -1196,6 +1203,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       return null
 
   Editor::inTree = (block) ->
+    if block.container? then block = block.container
+
     until block is @tree or not block?
       block = block.parent
 
@@ -1235,12 +1244,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         if @draggingBlock is @lassoSegment
           @lassoSegment = null
 
-        @draggingBlock = null
-        @draggingOffset = null
-        @lastHighlight = null
-
-        @clearDrag()
-        @redrawMain()
+        @endDrag()
         return
 
       else if renderPoint.x - @scrollOffsets.main.x < 0
@@ -1337,7 +1341,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     @paletteWrapper.appendChild @paletteHeader
 
     paletteHeaderRow = null
-    for paletteGroup, i in @paletteGroups then do (paletteGroup) =>
+    for paletteGroup, i in @paletteGroups then do (paletteGroup, i) =>
       # Start a new row, if we're at that point
       # in our appending cycle
       if i % 2 is 0
@@ -1369,19 +1373,20 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       # When we click this element,
       # we should switch to it in the palette.
-      clickHandler = =>
+      updatePalette = =>
         # Record that we are the selected group now
         @currentPaletteGroup = paletteGroup.name
         @currentPaletteBlocks = paletteGroupBlocks.map (x) -> x.block
         @currentPaletteMetadata = paletteGroupBlocks
 
         # Unapply the "selected" style to the current palette group header
-        @currentPaletteGroupHeader.className =
+        @currentPaletteGroupHeader?.className =
             @currentPaletteGroupHeader.className.replace(
                 /\s[-\w]*-selected\b/, '')
 
         # Now we are the current palette group header
         @currentPaletteGroupHeader = paletteGroupHeader
+        @currentPaletteIndex = i
 
         # Apply the "selected" style to us
         @currentPaletteGroupHeader.className +=
@@ -1390,6 +1395,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         # Redraw the palette.
         @redrawPalette()
 
+      clickHandler = =>
+        do updatePalette
         for event in editorBindings.set_palette
           event.call this
 
@@ -1398,18 +1405,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       # If we are the first element, make us the selected palette group.
       if i is 0
-        @currentPaletteGroup = paletteGroup.name
-        @currentPaletteBlocks = paletteGroupBlocks.map (x) -> x.block
-        @currentPaletteMetadata = paletteGroupBlocks
-        @currentPaletteGroupHeader = paletteGroupHeader
-
-        # Apply the "selected" style to us
-        @currentPaletteGroupHeader.className +=
-            ' ice-palette-group-header-selected'
-
-        @redrawPalette()
-        for event in editorBindings.set_palette
-          event.call this
+        do updatePalette
 
   # The next thing we need to do with the palette
   # is let people pick things up from it.
@@ -1534,7 +1530,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     redo: (editor) ->
       socket = editor.tree.getTokenAtLocation(@socket).container
       socket.start.append socket.end; socket.notifyChange()
-      @after.clone().moveTo socket
+      @after.clone().spliceIn socket
 
   # At populate-time, we need
   # to create and append the hidden input
@@ -1698,7 +1694,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     str[0] + str[1...-1].replace(/(\'|\"|\n)/g, '\\$1') + str[str.length - 1]
 
   # Convenince function for setting the text input
-  Editor::setTextInputFocus = (focus, selectionStart = 0, selectionEnd = 0) ->
+  Editor::setTextInputFocus = (focus, selectionStart = null, selectionEnd = null) ->
     if focus?.id of @extraMarks
       delete @extraMarks[focus?.id]
 
@@ -1714,6 +1710,12 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       originalText = @textFocus.stringify()
       shouldPop = false
+      shouldRecoverCursor = false
+      cursorPosition = cursorParent = null
+
+      if @cursor.hasParent @textFocus.parent
+        shouldRecoverCursor = true
+        cursorPosition = @getRecoverableCursorPosition()
 
       # The second of these is a reparse attempt.
       # If we can, try to reparse the focus
@@ -1741,33 +1743,8 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           @addMicroUndoOperation new TextReparseOperation @textFocus, unparsedValue
           shouldPop = true
 
-      try
-        # TODO make 'reparsable' property, bubble up until then
-        parseParent = @textFocus.parent
-
-        newParse = coffee.parse parseParent.stringify(), wrapAtRoot: true
-
-        if newParse.start.next?.container?.end is newParse.end.prev
-          if focus is null
-            newParse = newParse.start.next
-
-            if newParse.type is 'blockStart'
-              parseParent.start.prev.append newParse
-              newParse.container.end.append parseParent.end.next
-
-              newParse.container.parent = newParse.parent = newParse.container.end.parent =
-                parseParent.parent
-
-              newParse.container.notifyChange()
-
-              @addMicroUndoOperation new ReparseOperation parseParent, newParse.container
-
-              parseParent.parent = null
-
-        else
-          throw new Error 'Socket is split.'
-
-      catch
+      # TODO make 'reparsable' property, bubble up until then
+      unless @reparseRawReplace @textFocus.parent
         # If we can't reparse the parent, abort all reparses
         @populateSocket @textFocus, originalText
 
@@ -1779,13 +1756,17 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
         @redrawMain()
 
+    if shouldRecoverCursor
+      @recoverCursorPosition cursorPosition
+
     # Now we're done with the old focus,
     # we can start over.
-
     # If we're _unfocusing_, just do so.
     if not focus?
       @textFocus = null
-      @redrawMain(); @hiddenInput.blur(); @iceElement.focus()
+      @redrawMain()
+      @hiddenInput.blur()
+      @iceElement.focus()
       return
 
     # Record old focus value
@@ -1806,13 +1787,15 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # Set the hidden input up to mirror the text.
     @hiddenInput.value = @textFocus.stringify()
 
-    if selectionStart < 0 then selectionStart = @textFocus.stringify().length - selectionStart
-    if selectionEnd < 0 then selectionEnd = @textFocus.stringify().length - selectionEnd
+    if selectionStart? and not selectionEnd?
+      selectionEnd = selectionStart
 
     # Focus the hidden input.
     if @textFocus?
       @hiddenInput.focus()
-      if @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
+      if selectionStart? and selectionEnd?
+        @hiddenInput.setSelectionRange selectionStart, selectionEnd
+      else if @hiddenInput.value[0] is @hiddenInput.value[@hiddenInput.value.length - 1] and
          @hiddenInput.value[0] in ['\'', '"']
         @hiddenInput.setSelectionRange 1, @hiddenInput.value.length - 1
       else
@@ -2122,15 +2105,15 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       @clearLassoSelectCanvas(); @clearHighlightCanvas()
 
-      if first and last?
-        [first, last] = validateLassoSelection @tree, first, last
-        @drawTemporaryLasso first, last
-
       @lassoSelectCtx.strokeStyle = '#00f'
       @lassoSelectCtx.strokeRect lassoRectangle.x - @scrollOffsets.main.x,
         lassoRectangle.y - @scrollOffsets.main.y,
         lassoRectangle.width,
         lassoRectangle.height
+
+      if first and last?
+        [first, last] = validateLassoSelection @tree, first, last
+        @drawTemporaryLasso first, last
 
 
   Editor::drawTemporaryLasso = (first, last) ->
@@ -2216,7 +2199,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
       @addMicroUndoOperation new CreateSegmentOperation @lassoSegment
 
       # Move the cursor to the segment we just created
-      @moveCursorTo @lassoSegment.end.next, true
+      @moveCursorTo @lassoSegment.end.nextVisibleToken(), true
 
       @redrawMain()
 
@@ -2250,8 +2233,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
   Editor::moveCursorTo = (destination, attemptReparse = false) ->
     # If the destination is not inside the tree,
     # abort.
-    unless destination? then return
-    unless @inTree(destination) then return
+    unless destination?
+      if DEBUG_FLAG
+        throw new Error 'Cannot move cursor to null'
+      return null
+    unless @inTree(destination)
+      if DEBUG_FLAG
+        throw new Error 'Cannot move cursor to a place not in the main tree'
+      return null
 
     @highlightFlashShow()
 
@@ -2280,9 +2269,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # Keep scanning forward if this is an improper location.
     unless isValidCursorPosition @cursor then @moveCursorTo @cursor.next
 
-    if attemptReparse
-      @reparseHandwrittenBlocks()
-
     @redrawHighlights()
 
   Editor::moveCursorUp = ->
@@ -2307,9 +2293,111 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     # Keep sacnning backwards if this is an improper location.
     unless isValidCursorPosition @cursor then @moveCursorUp()
 
-    @reparseHandwrittenBlocks()
     @redrawHighlights()
     @scrollCursorIntoPosition()
+
+  Editor::getRecoverableCursorPosition = ->
+    pos = {
+      lines: 0
+      indents: 0
+    }
+    head = @cursor
+    until head.type is 'newline' or head is @tree.start
+      if head.type is 'indentEnd' then pos.indents++
+      head = head.prev
+    until head is @tree.start
+      if head.type is 'newline' then pos.lines++
+      head = head.prev
+
+    return pos
+
+  getAtChar = (parent, chars) ->
+    head = parent.start
+    charsCounted = 0
+
+    until charsCounted >= chars
+      if head.type is 'text' then charsCounted += head.value.length
+
+      head = head.next
+
+    return head
+
+  Editor::recoverCursorPosition = (pos) ->
+    head = @tree.start
+    testPos = {
+      lines: 0
+      indents: 0
+    }
+    until head is @tree.end or testPos.lines is pos.lines
+      head = head.next
+      if head.type is 'newline' then testPos.lines++
+
+    until head is @tree.end or testPos.indents is pos.indents
+      head = head.next
+      if head.type is 'indentEnd' then testPos.indents++
+
+    @cursor.remove()
+    if head.type is 'newline' then head.insert @cursor
+    else head.insertBefore @cursor
+
+  Editor::moveCursorHorizontally = (direction) ->
+    if @textFocus?
+      if direction is 'right'
+        head = @textFocus.end.next
+      else
+        head = @textFocus.start.prev
+    else unless (@cursor.prev is @tree.start and direction is 'left' or
+        @cursor.next is @tree.end and direction is 'right')
+      if direction is 'right'
+        head = @cursor.next.next
+      else
+        head = @cursor.prev.prev
+    else
+      return
+
+    while true
+      if head.type in ['newline', 'indentEnd'] or head.container is @tree
+        @cursor.remove()
+        if head is @tree.start or head.type is 'newline' then head.insert @cursor
+        else head.insertBefore @cursor
+        @setTextInputFocus null
+        unless @inTree(@cursor) then debugger
+        if isValidCursorPosition @cursor
+          break
+
+      if head.type is 'socketStart' and
+          (head.next.type is 'text' or head.next is head.container.end)
+        # Avoid problems with reparses
+        if @textFocus? and head.container.hasParent @textFocus.parent
+          persistentParent = @textFocus.getCommonParent(head.container).parent
+
+          chars = getCharactersTo persistentParent, head.container.start
+          @setTextInputFocus null
+          socket = getSocketAtChar persistentParent, chars
+        else
+          socket = head.container
+          @setTextInputFocus null
+
+        position = (if direction is 'right' then 0 else -1)
+        @setTextInputFocus socket, position, position
+        break
+
+      if direction is 'right' then head = head.next
+      else head = head.prev
+
+    @redrawMain()
+
+  hook 'key.right', 0, (state, event) ->
+    if not @textFocus? or
+        @hiddenInput.selectionStart is @hiddenInput.value.length
+      @moveCursorHorizontally 'right'
+      event.preventDefault()
+
+  hook 'key.left', 0, (state, event) ->
+    if not @textFocus? or
+        @hiddenInput.selectionEnd is 0
+      @moveCursorHorizontally 'left'
+      event.preventDefault()
 
   Editor::determineCursorPosition = ->
     if @cursor? and @cursor.parent?
@@ -2346,10 +2434,10 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   # Pressing the down-arrow moves the cursor down.
   hook 'key.down', 0, ->
+    unless @textFocus?
+      @moveCursorTo @cursor.next.next
     @clearLassoSelection()
     @setTextInputFocus null
-    @reparseHandwrittenBlocks()
-    @moveCursorTo @cursor.next.next
     @scrollCursorIntoPosition()
 
   getCharactersTo = (parent, token) ->
@@ -2385,7 +2473,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       if head?
         if @textFocus? and head.container.hasParent @textFocus.parent
-          persistentParent = @textFocus.parent.parent
+          persistentParent = @textFocus.getCommonParent(head.container).parent
 
           chars = getCharactersTo persistentParent, head.container.start
           @setTextInputFocus null
@@ -2406,7 +2494,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
         head = head.next
       if head?
         if @textFocus? and head.container.hasParent @textFocus.parent
-          persistentParent = @textFocus.parent.parent
+          persistentParent = @textFocus.getCommonParent(head.container).parent
 
           chars = getCharactersTo persistentParent, head.container.start
           @setTextInputFocus null
@@ -2459,7 +2547,9 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
   Editor::deleteLassoSegment = ->
     unless @lassoSegment?
-      throw new Error 'Cannot delete nonexistent lasso segment'
+      if DEBUG_FLAG
+        throw new Error 'Cannot delete nonexistent lasso segment'
+      return null
 
     @addMicroUndoOperation new PickUpOperation @lassoSegment
 
@@ -2501,7 +2591,6 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
           newBlock.moveTo head #MUTATION
 
           @redrawMain()
-          @reparseHandwrittenBlocks()
 
           @newHandwrittenSocket = newSocket
 
@@ -2533,59 +2622,14 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
     undo: (editor) ->
       block = editor.tree.getTokenAtLocation(@location).container
       newBlock = @before.clone()
-      block.start.prev.append newBlock.start
-      newBlock.end.append block.end.next
-
-      newBlock.notifyChange()
+      newBlock.rawReplace block
 
     redo: (editor) ->
       block = editor.tree.getTokenAtLocation(@location).container
       newBlock = @after.clone()
-      block.prev.append newBlock.start
-      newBlock.end.append block.end.next
+      newBlock.rawReplace block
 
       newBlock.notifyChange()
-
-  Editor::reparseHandwrittenBlocks = ->
-    @setTextInputFocus null
-
-    # Scan through the document to find handwritten
-    # blocks
-    head = @tree.start
-    until head is @tree.end
-      # If this is the start of a handwritten block,
-      # we may want to reparse it.
-      if  head.type is 'blockStart' and
-          head.next.type is 'socketStart' and
-          head.next.container.handwritten and
-          not containsCursor head.container
-        try
-          # Reparse the block.
-          newBlock = coffee.parse(head.container.stringify(), wrapAtRoot: true).start.next
-
-          # (we only reparse if it is actually
-          # a better parse than a handwritten block).
-          if newBlock.type is 'blockStart'
-            # Log the undo operation
-            @addMicroUndoOperation new ReparseOperation head.container, newBlock.container
-
-            # Splice it in perfectly.
-            head.prev.append newBlock
-            newBlock.container.end.append head.container.end.next
-
-            newBlock.parent = head.container.parent
-            head.container.parent = null
-
-            newBlock.notifyChange()
-
-            head = newBlock.container.end
-
-      head = head.next
-
-    @redrawMain()
-
-    return null
-
 
   # ANIMATION AND ACE EDITOR SUPPORT
   # ================================
@@ -3389,6 +3433,27 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
     @dragCover.style.display = 'none'
 
+  # FAILSAFE END DRAG HACK
+  # ================================
+
+  hook 'mousedown', 10, ->
+    if @draggingBlock?
+      @endDrag()
+
+  Editor::endDrag = ->
+    @draggingBlock = null
+    @draggingOffset = null
+    @lastHighlight = null
+
+    @clearDrag()
+    @redrawMain()
+    return
+
+  # PALETTE EVENT
+  # =================================
+  hook 'set_palette', 0, ->
+    @fireEvent 'changepalette', []
+
   # TOUCHSCREEN SUPPORT
   # =================================
 
@@ -3609,13 +3674,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
       if @inTree(@draggingBlock) and @mainViewOrChildrenContains @draggingBlock, renderPoint
         @draggingBlock.ephemeral = false
-
-        @draggingBlock = null
-        @draggingOffset = null
-        @lastHighlight = null
-
-        @clearDrag()
-        @redrawMain()
+        @endDrag()
 
   # LINE NUMBER GUTTER CODE
   # ================================
@@ -3758,7 +3817,7 @@ define ['ice-helper', 'ice-coffee', 'ice-draw', 'ice-model', 'ice-view'], (helpe
 
           @addMicroUndoOperation new DropOperation blocks, @cursor.previousVisibleToken()
 
-          blocks.spliceIn @getCursorSpliceArea()
+          blocks.spliceIn @cursor
           unless blocks.end.nextVisibleToken().type in ['newline', 'indentEnd']
             blocks.end.insert new model.NewlineToken()
 
