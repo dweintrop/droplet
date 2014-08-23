@@ -7733,7 +7733,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 //# sourceMappingURL=controller.js.map
 ;
 (function() {
-  define('ice',['melt-draw', 'melt-view', 'melt-model', 'melt-coffee', 'melt-controller', 'melt-parser'], function(draw, view, model, coffee, controller, parser) {
+  define('melt',['melt-draw', 'melt-view', 'melt-model', 'melt-coffee', 'melt-controller', 'melt-parser'], function(draw, view, model, coffee, controller, parser) {
     return {
       view: view,
       draw: draw,
