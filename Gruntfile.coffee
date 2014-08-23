@@ -10,6 +10,22 @@ notify = (message) ->
 module.exports = (grunt) ->
   grunt.initConfig
     pkg: grunt.file.readJSON 'package.json'
+
+    bowercopy:
+      options:
+        clean: true
+      vendor:
+        options:
+          destPrefix: 'vendor'
+        files:
+          'ace' : 'ace-builds/src-noconflict'
+          'coffee-script.js' : 'coffee-script/extras/coffee-script.js'
+          'quadtree.js' : 'quadtree/quadtree.js'
+          'qunit.js' : 'qunit/qunit/qunit.js'
+          'qunit.css' : 'qunit/qunit/qunit.css'
+          'require.js' : 'requirejs/require.js'
+
+      ,
     coffee:
       options:
         sourceMap: true
@@ -55,17 +71,17 @@ module.exports = (grunt) ->
           baseUrl: 'js'
           paths:
             'coffee-script': '../vendor/coffee-script'
-            'ice-view': 'view'
-            'ice-controller': 'controller'
-            'ice-model': 'model'
-            'ice-draw': 'draw'
-            'ice-coffee': 'coffee'
-            'ice-parser': 'parser'
-            'ice-helper': 'helper'
+            'melt-view': 'view'
+            'melt-controller': 'controller'
+            'melt-model': 'model'
+            'melt-draw': 'draw'
+            'melt-coffee': 'coffee'
+            'melt-parser': 'parser'
+            'melt-helper': 'helper'
             'ice': 'main'
           name: 'ice'
           optimize: 'none'
-          out: 'dist/ice.js'
+          out: 'dist/melt.js'
 
     cssmin:
       options:
@@ -75,8 +91,8 @@ module.exports = (grunt) ->
            MIT License.
            */'''
       minify:
-        src: ['css/ice.css']
-        dest: 'dist/ice.min.css'
+        src: ['css/melt.css']
+        dest: 'dist/melt.min.css'
         ext: '.min.css'
 
     concat:
@@ -91,10 +107,9 @@ module.exports = (grunt) ->
         footer: '}).call(this);'
       build:
         files:
-          'dist/ice-full.js': [
-            'vendor/quadtree.min.js'
-            'vendor/keypress-2.0.1.min.js'
-            'dist/ice.js'
+          'dist/melt-full.js': [
+            'vendor/quadtree.js'
+            'dist/melt.js'
           ]
 
     uglify:
@@ -105,7 +120,10 @@ module.exports = (grunt) ->
 
       build:
         files:
-          'dist/ice-full.min.js': ['vendor/keypress-2.0.1.min.js', 'dist/ice.js']
+          'dist/melt-full.min.js': [
+            'vendor/quadtree.js'
+            'dist/melt.js'
+          ]
 
     connect:
       testserver:
@@ -124,6 +142,7 @@ module.exports = (grunt) ->
         files: ['src/*.coffee', 'example/*.coffee']
         tasks: ['quickbuild', 'notify-done']
 
+  grunt.loadNpmTasks 'grunt-bowercopy'
   grunt.loadNpmTasks 'grunt-banner'
   grunt.loadNpmTasks 'grunt-contrib-coffee'
   grunt.loadNpmTasks 'grunt-contrib-concat'
