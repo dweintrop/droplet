@@ -4479,17 +4479,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           return _this.resize();
         });
         dispatchMouseEvent = function(event) {
-          var handler, state, trackPoint, _j, _len1, _ref2, _ref3;
-          if ((_ref2 = event.type) === 'mousedown' || _ref2 === 'dblclick' || _ref2 === 'mouseup') {
-            if (event.which !== 1) {
-              return;
-            }
+          var handler, state, trackPoint, _j, _len1, _ref2;
+          if (event.type !== 'mousemove' && event.which !== 1) {
+            return;
           }
           trackPoint = new _this.draw.Point(event.pageX, event.pageY);
           state = {};
-          _ref3 = editorBindings[event.type];
-          for (_j = 0, _len1 = _ref3.length; _j < _len1; _j++) {
-            handler = _ref3[_j];
+          _ref2 = editorBindings[event.type];
+          for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
+            handler = _ref2[_j];
             handler.call(_this, trackPoint, event, state);
           }
           if (typeof event.stopPropagation === "function") {
@@ -4767,6 +4765,30 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       gbr = this.paletteCanvas.getBoundingClientRect();
       return new this.draw.Point(point.x - gbr.left + this.scrollOffsets.palette.x, point.y - gbr.top + this.scrollOffsets.palette.y);
     };
+    Editor.prototype.trackerPointIsInMain = function(point) {
+      var gbr;
+      if (this.mainCanvas.offsetParent == null) {
+        return false;
+      }
+      gbr = this.mainCanvas.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
+    };
+    Editor.prototype.trackerPointIsInMainScroller = function(point) {
+      var gbr;
+      if (this.mainScroller.offsetParent == null) {
+        return false;
+      }
+      gbr = this.mainScroller.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
+    };
+    Editor.prototype.trackerPointIsInPalette = function(point) {
+      var gbr;
+      if (this.palettleCanvas.offsetParent == null) {
+        return false;
+      }
+      gbr = this.palettleCanvas.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
+    };
     Editor.prototype.hitTest = function(point, block) {
       var head, seek;
       head = block.start;
@@ -4967,7 +4989,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInMain(point)) {
         return;
       }
       mainPoint = this.trackerPointToMain(point);
@@ -4985,7 +5007,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         this.dumpNodeForDebug(hitTestResult, line);
       }
-      if ((hitTestResult != null) && event.which === 1) {
+      if (hitTestResult != null) {
         this.clickedBlock = hitTestResult;
         this.moveCursorTo(this.clickedBlock.start.next);
         this.clickedPoint = point;
@@ -5320,7 +5342,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInMain(point)) {
         return;
       }
       _ref1 = this.floatingBlocks;
@@ -5452,7 +5474,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInPalette(point)) {
         return;
       }
       palettePoint = this.trackerPointToPalette(point);
@@ -6009,21 +6031,22 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     hook('mousedown', 0, function(point, event, state) {
-      var mainPoint, palettePoint, _ref1, _ref2, _ref3, _ref4;
+      var mainPoint, palettePoint;
       if (!state.clickedLassoSegment) {
         this.clearLassoSelection();
       }
       if (state.consumedHitTest || state.suppressLassoSelect) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInMain(point)) {
+        return;
+      }
+      if (this.trackerPointIsInPalette(point)) {
         return;
       }
       mainPoint = this.trackerPointToMain(point).from(this.scrollOffsets.main);
       palettePoint = this.trackerPointToPalette(point).from(this.scrollOffsets.palette);
-      if ((0 < (_ref1 = mainPoint.x) && _ref1 < this.mainCanvas.width) && (0 < (_ref2 = mainPoint.y) && _ref2 < this.mainCanvas.height) && !((0 < (_ref3 = palettePoint.x) && _ref3 < this.paletteCanvas.width) && (0 < (_ref4 = palettePoint.x) && _ref4 < this.paletteCanvas.height))) {
-        return this.lassoSelectAnchor = this.trackerPointToMain(point);
-      }
+      return this.lassoSelectAnchor = this.trackerPointToMain(point);
     });
     hook('mousemove', 0, function(point, event, state) {
       var first, lassoRectangle, last, mainPoint, _ref1;
@@ -6128,9 +6151,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     });
     hook('mousedown', 3, function(point, event, state) {
       if (state.consumedHitTest) {
-        return;
-      }
-      if (event.which !== 1) {
         return;
       }
       if ((this.lassoSegment != null) && (this.hitTest(this.trackerPointToMain(point), this.lassoSegment) != null)) {
@@ -7103,6 +7123,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('mousemove', 0, function(point, event, state) {
       var hoveredLine, mainPoint, treeView;
       if ((this.draggingBlock == null) && (this.clickedBlock == null) && this.hasEvent('linehover')) {
+        if (!this.trackerPointIsInMainScroller(point)) {
+          return;
+        }
         mainPoint = this.trackerPointToMain(point);
         treeView = this.view.getViewNodeFor(this.tree);
         if ((this.lastHoveredLine != null) && (treeView.bounds[this.lastHoveredLine] != null) && treeView.bounds[this.lastHoveredLine].contains(mainPoint)) {
@@ -7502,8 +7525,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         if (treeView.bounds[pivot].y > coord) {
           end = pivot;
-        }
-        if (treeView.bounds[pivot].y < coord) {
+        } else {
           start = pivot;
         }
         if (end < 0) {
@@ -7617,7 +7639,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     });
     hook('keydown', 0, function(event, state) {
       var _ref1;
-      console.log(event.which, command_modifiers);
       if (_ref1 = event.which, __indexOf.call(command_modifiers, _ref1) >= 0) {
         console.log('FOCUSING');
         if (this.textFocus == null) {
