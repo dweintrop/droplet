@@ -3872,7 +3872,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     MOSTLY_BLOCK = helper.MOSTLY_BLOCK;
     MOSTLY_VALUE = helper.MOSTLY_VALUE;
     VALUE_ONLY = helper.VALUE_ONLY;
-    BLOCK_FUNCTIONS = ['fd', 'bk', 'rt', 'lt', 'slide', 'movexy', 'moveto', 'jump', 'jumpto', 'turnto', 'home', 'pen', 'fill', 'dot', 'box', 'mirror', 'twist', 'scale', 'pause', 'st', 'ht', 'pu', 'pd', 'pe', 'pf', 'play', 'tone', 'silence', 'speed', 'wear', 'drawon', 'label', 'reload', 'see', 'sync', 'send', 'recv', 'click', 'mousemove', 'mouseup', 'mousedown', 'keyup', 'keydown', 'keypress'];
+    BLOCK_FUNCTIONS = ['fd', 'bk', 'rt', 'lt', 'slide', 'movexy', 'moveto', 'jump', 'jumpto', 'turnto', 'home', 'pen', 'fill', 'dot', 'box', 'mirror', 'twist', 'scale', 'pause', 'st', 'ht', 'cs', 'cg', 'ct', 'pu', 'pd', 'pe', 'pf', 'play', 'tone', 'silence', 'speed', 'wear', 'drawon', 'label', 'reload', 'see', 'sync', 'send', 'recv', 'click', 'mousemove', 'mouseup', 'mousedown', 'keyup', 'keydown', 'keypress'];
     VALUE_FUNCTIONS = ['abs', 'acos', 'asin', 'atan', 'atan2', 'cos', 'sin', 'tan', 'ceil', 'floor', 'round', 'exp', 'ln', 'log10', 'pow', 'sqrt', 'max', 'min', 'random', 'pagexy', 'getxy', 'direction', 'distance', 'shown', 'hidden', 'inside', 'touches', 'within', 'notwithin', 'nearest', 'pressed', 'canvas', 'hsl', 'hsla', 'rgb', 'rgba', 'cell'];
     EITHER_FUNCTIONS = ['button', 'read', 'readstr', 'readnum', 'write', 'table', 'append', 'finish', 'loadscript'];
     STATEMENT_KEYWORDS = ['break', 'continue'];
@@ -4589,9 +4589,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       userAgent = window.navigator.userAgent;
     }
     isOSX = /OS X/.test(userAgent);
-    command_modifiers = isOSX != null ? isOSX : {
-      META_KEYS: CONTROL_KEYS
-    };
+    command_modifiers = isOSX ? META_KEYS : CONTROL_KEYS;
     command_pressed = function(e) {
       if (isOSX) {
         return e.metaKey;
@@ -4733,22 +4731,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         window.addEventListener('resize', (function(_this) {
           return function() {
-            return _this.resize();
+            return _this.resizeBlockMode();
           };
         })(this));
         dispatchMouseEvent = (function(_this) {
           return function(event) {
-            var handler, state, trackPoint, _j, _len1, _ref2, _ref3;
-            if ((_ref2 = event.type) === 'mousedown' || _ref2 === 'dblclick' || _ref2 === 'mouseup') {
-              if (event.which !== 1) {
-                return;
-              }
+            var handler, state, trackPoint, _j, _len1, _ref2;
+            if (event.type !== 'mousemove' && event.which !== 1) {
+              return;
             }
             trackPoint = new _this.draw.Point(event.pageX, event.pageY);
             state = {};
-            _ref3 = editorBindings[event.type];
-            for (_j = 0, _len1 = _ref3.length; _j < _len1; _j++) {
-              handler = _ref3[_j];
+            _ref2 = editorBindings[event.type];
+            for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
+              handler = _ref2[_j];
               handler.call(_this, trackPoint, event, state);
             }
             if (typeof event.stopPropagation === "function") {
@@ -4804,14 +4800,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         this.tree = new model.Segment();
         this.tree.start.insert(this.cursor);
-        this.resize();
+        this.resizeBlockMode();
         this.redrawMain();
         this.redrawPalette();
         return this;
       }
 
-      Editor.prototype.resize = function() {
-        var binding, _i, _len, _ref1;
+      Editor.prototype.resizeTextMode = function() {
+        this.resizeAceElement();
+        return this.aceEditor.resize(true);
+      };
+
+      Editor.prototype.resizeBlockMode = function() {
+        this.resizeTextMode();
+        this.resizeGutter();
         this.meltElement.style.left = "" + this.paletteElement.offsetWidth + "px";
         this.meltElement.style.height = "" + this.wrapperElement.offsetHeight + "px";
         this.meltElement.style.width = "" + (this.wrapperElement.offsetWidth - this.paletteWrapper.offsetWidth) + "px";
@@ -4822,11 +4824,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.mainCanvas.style.left = "" + this.gutter.offsetWidth + "px";
         this.transitionContainer.style.left = "" + this.gutter.offsetWidth + "px";
         this.resizePalette();
-        _ref1 = editorBindings.resize;
-        for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
-          binding = _ref1[_i];
-          binding.call(this);
-        }
+        this.resizePaletteHighlight();
+        this.resizeNubby();
+        this.resizeMainScroller();
+        this.resizeLassoCanvas();
+        this.resizeCursorCanvas();
+        this.resizeDragCanvas();
         this.scrollOffsets.main.y = this.mainScroller.scrollTop;
         this.scrollOffsets.main.x = this.mainScroller.scrollLeft;
         this.mainCtx.setTransform(1, 0, 0, 1, -this.scrollOffsets.main.x, -this.scrollOffsets.main.y);
@@ -4860,6 +4863,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return Editor;
 
     })();
+    Editor.prototype.resize = function() {
+      if (this.currentlyUsingBlocks) {
+        return this.resizeBlockMode();
+      } else {
+        return this.resizeTextMode();
+      }
+    };
     Editor.prototype.clearMain = function(opts) {
       if (opts.boundingRectangle != null) {
         return this.mainCtx.clearRect(opts.boundingRectangle.x, opts.boundingRectangle.y, opts.boundingRectangle.width, opts.boundingRectangle.height);
@@ -4891,9 +4901,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       return this.redrawMain();
     };
-    hook('resize', 0, function() {
+    Editor.prototype.resizeNubby = function() {
       return this.setTopNubbyStyle(this.nubbyHeight, this.nubbyColor);
-    });
+    };
     Editor.prototype.redrawMain = function(opts) {
       var binding, layoutResult, oldScroll, _i, _len, _ref1, _ref2, _ref3;
       if (opts == null) {
@@ -4928,7 +4938,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.changeEventVersion = this.tree.version;
           this.suppressAceChangeEvent = true;
           oldScroll = this.aceEditor.session.getScrollTop();
-          this.aceEditor.setValue(this.getValue(), -1);
+          this.setAceValue(this.getValue());
           this.suppressAceChangeEvent = false;
           this.aceEditor.session.setScrollTop(oldScroll);
           this.fireEvent('change', []);
@@ -5028,6 +5038,30 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       gbr = this.paletteCanvas.getBoundingClientRect();
       return new this.draw.Point(point.x - gbr.left + this.scrollOffsets.palette.x, point.y - gbr.top + this.scrollOffsets.palette.y);
+    };
+    Editor.prototype.trackerPointIsInMain = function(point) {
+      var gbr;
+      if (this.mainCanvas.offsetParent == null) {
+        return false;
+      }
+      gbr = this.mainCanvas.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
+    };
+    Editor.prototype.trackerPointIsInMainScroller = function(point) {
+      var gbr;
+      if (this.mainScroller.offsetParent == null) {
+        return false;
+      }
+      gbr = this.mainScroller.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
+    };
+    Editor.prototype.trackerPointIsInPalette = function(point) {
+      var gbr;
+      if (this.paletteCanvas.offsetParent == null) {
+        return false;
+      }
+      gbr = this.paletteCanvas.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
     };
     Editor.prototype.hitTest = function(point, block) {
       var head, seek;
@@ -5195,6 +5229,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('populate', 0, function() {
       this.clickedPoint = null;
       this.clickedBlock = null;
+      this.clickedBlockIsPaletteBlock = false;
       this.draggingBlock = null;
       this.draggingOffset = null;
       this.lastHighlight = null;
@@ -5215,7 +5250,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.clearDrag = function() {
       return this.dragCtx.clearRect(0, 0, this.dragCanvas.width, this.dragCanvas.height);
     };
-    hook('resize', 0, function() {
+    Editor.prototype.resizeDragCanvas = function() {
       this.dragCanvas.width = 0;
       this.dragCanvas.height = 0;
       this.highlightCanvas.width = this.meltElement.offsetWidth;
@@ -5223,13 +5258,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.highlightCanvas.height = this.meltElement.offsetHeight;
       this.highlightCanvas.style.height = "" + this.highlightCanvas.height + "px";
       return this.highlightCanvas.style.left = "" + this.mainCanvas.offsetLeft + "px";
-    });
+    };
     hook('mousedown', 1, function(point, event, state) {
       var box, hitTestResult, i, line, mainPoint, node, _i, _len, _ref1;
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInMain(point)) {
         return;
       }
       mainPoint = this.trackerPointToMain(point);
@@ -5247,8 +5282,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         this.dumpNodeForDebug(hitTestResult, line);
       }
-      if ((hitTestResult != null) && event.which === 1) {
+      if (hitTestResult != null) {
         this.clickedBlock = hitTestResult;
+        this.clickedBlockIsPaletteBlock = false;
         this.moveCursorTo(this.clickedBlock.start.next);
         this.clickedPoint = point;
         return state.consumedHitTest = true;
@@ -5331,6 +5367,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.dragCanvas.style.top = "" + (position.y + getOffsetTop(this.meltElement)) + "px";
         this.dragCanvas.style.left = "" + (position.x + getOffsetLeft(this.meltElement)) + "px";
         this.clickedPoint = this.clickedBlock = null;
+        this.clickedBlockIsPaletteBlock = false;
         this.begunTrash = this.wouldDelete(position);
         return this.redrawMain();
       }
@@ -5583,7 +5620,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInMain(point)) {
         return;
       }
       _ref1 = this.floatingBlocks;
@@ -5635,88 +5672,92 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return _results;
     });
     hook('populate', 0, function() {
-      var i, paletteGroup, paletteHeaderRow, _i, _len, _ref1, _results;
-      this.currentPaletteBlocks = [];
-      this.currentPaletteMetadata = [];
-      this.clickedBlockIsPaletteBlock = false;
       this.paletteHeader = document.createElement('div');
       this.paletteHeader.className = 'melt-palette-header';
       this.paletteWrapper.appendChild(this.paletteHeader);
+      return this.setPalette(this.paletteGroups);
+    });
+    Editor.prototype.setPalette = function(paletteGroups) {
+      var i, paletteGroup, paletteHeaderRow, _fn, _i, _len, _ref1;
+      this.paletteHeader.innerHTML = '';
+      this.paletteGroups = paletteGroups;
+      this.currentPaletteBlocks = [];
+      this.currentPaletteMetadata = [];
       paletteHeaderRow = null;
       _ref1 = this.paletteGroups;
-      _results = [];
+      _fn = (function(_this) {
+        return function(paletteGroup, i) {
+          var clickHandler, data, newBlock, newPaletteBlocks, paletteGroupBlocks, paletteGroupHeader, updatePalette, _j, _len1, _ref2;
+          if (i % 2 === 0) {
+            paletteHeaderRow = document.createElement('div');
+            paletteHeaderRow.className = 'melt-palette-header-row';
+            _this.paletteHeader.appendChild(paletteHeaderRow);
+          }
+          paletteGroupHeader = document.createElement('div');
+          paletteGroupHeader.className = 'melt-palette-group-header';
+          paletteGroupHeader.innerText = paletteGroupHeader.textContent = paletteGroupHeader.textContent = paletteGroup.name;
+          if (paletteGroup.color) {
+            paletteGroupHeader.className += ' ' + paletteGroup.color;
+          }
+          paletteHeaderRow.appendChild(paletteGroupHeader);
+          newPaletteBlocks = [];
+          _ref2 = paletteGroup.blocks;
+          for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
+            data = _ref2[_j];
+            newBlock = coffee.parse(data.block).start.next.container;
+            newBlock.spliceOut();
+            newBlock.parent = null;
+            newPaletteBlocks.push({
+              block: newBlock,
+              title: data.title
+            });
+          }
+          paletteGroupBlocks = newPaletteBlocks;
+          updatePalette = function() {
+            var _ref3;
+            _this.currentPaletteGroup = paletteGroup.name;
+            _this.currentPaletteBlocks = paletteGroupBlocks.map(function(x) {
+              return x.block;
+            });
+            _this.currentPaletteMetadata = paletteGroupBlocks;
+            if ((_ref3 = _this.currentPaletteGroupHeader) != null) {
+              _ref3.className = _this.currentPaletteGroupHeader.className.replace(/\s[-\w]*-selected\b/, '');
+            }
+            _this.currentPaletteGroupHeader = paletteGroupHeader;
+            _this.currentPaletteIndex = i;
+            _this.currentPaletteGroupHeader.className += ' melt-palette-group-header-selected';
+            return _this.redrawPalette();
+          };
+          clickHandler = function() {
+            var event, _k, _len2, _ref3, _results;
+            updatePalette();
+            _ref3 = editorBindings.set_palette;
+            _results = [];
+            for (_k = 0, _len2 = _ref3.length; _k < _len2; _k++) {
+              event = _ref3[_k];
+              _results.push(event.call(_this));
+            }
+            return _results;
+          };
+          paletteGroupHeader.addEventListener('click', clickHandler);
+          paletteGroupHeader.addEventListener('touchstart', clickHandler);
+          if (i === 0) {
+            return updatePalette();
+          }
+        };
+      })(this);
       for (i = _i = 0, _len = _ref1.length; _i < _len; i = ++_i) {
         paletteGroup = _ref1[i];
-        _results.push((function(_this) {
-          return function(paletteGroup, i) {
-            var clickHandler, data, newBlock, newPaletteBlocks, paletteGroupBlocks, paletteGroupHeader, updatePalette, _j, _len1, _ref2;
-            if (i % 2 === 0) {
-              paletteHeaderRow = document.createElement('div');
-              paletteHeaderRow.className = 'melt-palette-header-row';
-              _this.paletteHeader.appendChild(paletteHeaderRow);
-            }
-            paletteGroupHeader = document.createElement('div');
-            paletteGroupHeader.className = 'melt-palette-group-header';
-            paletteGroupHeader.innerText = paletteGroupHeader.textContent = paletteGroupHeader.textContent = paletteGroup.name;
-            if (paletteGroup.color) {
-              paletteGroupHeader.className += ' ' + paletteGroup.color;
-            }
-            paletteHeaderRow.appendChild(paletteGroupHeader);
-            newPaletteBlocks = [];
-            _ref2 = paletteGroup.blocks;
-            for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
-              data = _ref2[_j];
-              newBlock = coffee.parse(data.block).start.next.container;
-              newBlock.spliceOut();
-              newBlock.parent = null;
-              newPaletteBlocks.push({
-                block: newBlock,
-                title: data.title
-              });
-            }
-            paletteGroupBlocks = newPaletteBlocks;
-            updatePalette = function() {
-              var _ref3;
-              _this.currentPaletteGroup = paletteGroup.name;
-              _this.currentPaletteBlocks = paletteGroupBlocks.map(function(x) {
-                return x.block;
-              });
-              _this.currentPaletteMetadata = paletteGroupBlocks;
-              if ((_ref3 = _this.currentPaletteGroupHeader) != null) {
-                _ref3.className = _this.currentPaletteGroupHeader.className.replace(/\s[-\w]*-selected\b/, '');
-              }
-              _this.currentPaletteGroupHeader = paletteGroupHeader;
-              _this.currentPaletteIndex = i;
-              _this.currentPaletteGroupHeader.className += ' melt-palette-group-header-selected';
-              return _this.redrawPalette();
-            };
-            clickHandler = function() {
-              var event, _k, _len2, _ref3, _results1;
-              updatePalette();
-              _ref3 = editorBindings.set_palette;
-              _results1 = [];
-              for (_k = 0, _len2 = _ref3.length; _k < _len2; _k++) {
-                event = _ref3[_k];
-                _results1.push(event.call(_this));
-              }
-              return _results1;
-            };
-            paletteGroupHeader.addEventListener('click', clickHandler);
-            paletteGroupHeader.addEventListener('touchstart', clickHandler);
-            if (i === 0) {
-              return updatePalette();
-            }
-          };
-        })(this)(paletteGroup, i));
+        _fn(paletteGroup, i);
       }
-      return _results;
-    });
+      return this.resizePalette();
+    };
     hook('mousedown', 6, function(point, event, state) {
       var block, hitTestResult, palettePoint, _i, _len, _ref1, _ref2, _ref3;
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInPalette(point)) {
         return;
       }
       palettePoint = this.trackerPointToPalette(point);
@@ -5744,11 +5785,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.currentHighlightedPaletteBlock = null;
       return this.paletteWrapper.appendChild(this.paletteHighlightCanvas);
     });
-    hook('resize', 0, function() {
+    Editor.prototype.resizePaletteHighlight = function() {
       this.paletteHighlightCanvas.style.top = this.paletteHeader.offsetHeight + 'px';
       this.paletteHighlightCanvas.width = this.paletteCanvas.width;
       return this.paletteHighlightCanvas.height = this.paletteCanvas.height;
-    });
+    };
     hook('redraw_palette', 0, function() {
       this.clearPaletteHighlightCanvas();
       if (this.currentHighlightedPaletteBlock != null) {
@@ -5889,10 +5930,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       return _results;
     });
-    hook('resize', 0, function() {
+    Editor.prototype.resizeAceElement = function() {
       this.aceElement.style.width = "" + this.wrapperElement.offsetWidth + "px";
       return this.aceElement.style.height = "" + this.wrapperElement.offsetHeight + "px";
-    });
+    };
     last_ = function(array) {
       return array[array.length - 1];
     };
@@ -6250,13 +6291,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.clearLassoSelectCanvas = function() {
       return this.lassoSelectCtx.clearRect(0, 0, this.lassoSelectCanvas.width, this.lassoSelectCanvas.height);
     };
-    hook('resize', 0, function() {
+    Editor.prototype.resizeLassoCanvas = function() {
       this.lassoSelectCanvas.width = this.meltElement.offsetWidth;
       this.lassoSelectCanvas.style.width = "" + this.lassoSelectCanvas.width + "px";
       this.lassoSelectCanvas.height = this.meltElement.offsetHeight;
       this.lassoSelectCanvas.style.height = "" + this.lassoSelectCanvas.height + "px";
       return this.lassoSelectCanvas.style.left = "" + this.mainCanvas.offsetLeft + "px";
-    });
+    };
     Editor.prototype.clearLassoSelection = function() {
       var head, needToRedraw, next;
       this.lassoSegment = null;
@@ -6278,21 +6319,22 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     hook('mousedown', 0, function(point, event, state) {
-      var mainPoint, palettePoint, _ref1, _ref2, _ref3, _ref4;
+      var mainPoint, palettePoint;
       if (!state.clickedLassoSegment) {
         this.clearLassoSelection();
       }
       if (state.consumedHitTest || state.suppressLassoSelect) {
         return;
       }
-      if (event.which !== 1) {
+      if (!this.trackerPointIsInMain(point)) {
+        return;
+      }
+      if (this.trackerPointIsInPalette(point)) {
         return;
       }
       mainPoint = this.trackerPointToMain(point).from(this.scrollOffsets.main);
       palettePoint = this.trackerPointToPalette(point).from(this.scrollOffsets.palette);
-      if ((0 < (_ref1 = mainPoint.x) && _ref1 < this.mainCanvas.width) && (0 < (_ref2 = mainPoint.y) && _ref2 < this.mainCanvas.height) && !((0 < (_ref3 = palettePoint.x) && _ref3 < this.paletteCanvas.width) && (0 < (_ref4 = palettePoint.x) && _ref4 < this.paletteCanvas.height))) {
-        return this.lassoSelectAnchor = this.trackerPointToMain(point);
-      }
+      return this.lassoSelectAnchor = this.trackerPointToMain(point);
     });
     hook('mousemove', 0, function(point, event, state) {
       var first, lassoRectangle, last, mainPoint, _ref1;
@@ -6399,11 +6441,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (state.consumedHitTest) {
         return;
       }
-      if (event.which !== 1) {
-        return;
-      }
       if ((this.lassoSegment != null) && (this.hitTest(this.trackerPointToMain(point), this.lassoSegment) != null)) {
         this.clickedBlock = this.lassoSegment;
+        this.clickedBlockIsPaletteBlock = false;
         this.clickedPoint = point;
         state.consumedHitTest = true;
         return state.clickedLassoSegment = true;
@@ -6709,7 +6749,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           }
           this.setTextInputFocus(socket);
         }
-        return false;
+        return event.preventDefault();
       } else {
         if (this.textFocus != null) {
           head = this.textFocus.end;
@@ -6731,7 +6771,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           }
           this.setTextInputFocus(socket);
         }
-        return false;
+        return event.preventDefault();
       }
     });
     Editor.prototype.deleteAtCursor = function() {
@@ -6760,6 +6800,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (this.lassoSegment != null) {
         this.addMicroUndoOperation('CAPTURE_POINT');
         this.deleteLassoSegment();
+        event.preventDefault();
         return false;
       } else if ((this.textFocus == null) || (this.hiddenInput.value.length === 0 && this.textFocus.handwritten)) {
         this.addMicroUndoOperation('CAPTURE_POINT');
@@ -6857,8 +6898,21 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })(UndoOperation);
     Editor.prototype.copyAceEditor = function() {
+      clearTimeout(this.changeFromAceTimer);
+      this.changeFromAceTimer = null;
       this.gutter.style.width = this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
-      return this.resize();
+      this.resizeBlockMode();
+      return this.setValue_raw(this.getAceValue());
+    };
+    Editor.prototype.changeFromAceEditor = function() {
+      if (this.changeFromAceTimer) {
+        return;
+      }
+      return this.changeFromAceTimer = setTimeout(((function(_this) {
+        return function() {
+          return _this.copyAceEditor();
+        };
+      })(this)), 0);
     };
     hook('populate', 0, function() {
       this.aceElement = document.createElement('div');
@@ -6871,8 +6925,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.aceEditor.getSession().setTabSize(2);
       this.aceEditor.on('change', (function(_this) {
         return function() {
-          if (_this.currentlyUsingBlocks && !_this.suppressAceChangeEvent) {
-            return _this.copyAceEditor();
+          if (_this.suppressAceChangeEvent) {
+            return;
+          }
+          if (_this.currentlyUsingBlocks) {
+            return _this.changeFromAceEditor();
+          } else {
+            return _this.fireEvent('change', []);
           }
         };
       })(this));
@@ -6981,7 +7040,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       if (this.currentlyUsingBlocks && !this.currentlyAnimating) {
         this.fireEvent('statechange', [false]);
-        this.aceEditor.setValue(this.getValue(), -1);
+        console.log('ACE SET VALUE ON MELT');
+        this.setAceValue(this.getValue());
         top = this.findLineNumberAtCoordinate(this.scrollOffsets.main.y);
         this.aceEditor.scrollToLine(top);
         this.aceEditor.resize(true);
@@ -7107,9 +7167,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         cb = function() {};
       }
       if (!this.currentlyUsingBlocks && !this.currentlyAnimating) {
-        this.copyAceEditor();
-        this.fireEvent('statechange', [true]);
-        setValueResult = this.setValue_raw(this.aceEditor.getValue());
+        setValueResult = this.copyAceEditor();
         if (!setValueResult.success) {
           return setValueResult;
         }
@@ -7120,6 +7178,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         this.currentlyUsingBlocks = true;
         this.currentlyAnimating = true;
+        this.fireEvent('statechange', [true]);
         setTimeout(((function(_this) {
           return function() {
             var aceScrollTop, bottom, div, el, i, line, lineHeight, textElement, textElements, top, translatingElements, translationVectors, treeView, _fn, _fn1, _i, _j, _k, _len, _len1, _ref1, _ref2;
@@ -7224,7 +7283,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 div = translatingElements[_l];
                 div.parentNode.removeChild(div);
               }
-              _this.resize();
+              _this.resizeBlockMode();
               _this.fireEvent('toggledone', [_this.currentlyUsingBlocks]);
               if (cb != null) {
                 return cb();
@@ -7280,10 +7339,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         };
       })(this));
     });
-    hook('resize', 0, function() {
+    Editor.prototype.resizeMainScroller = function() {
       this.mainScroller.style.width = "" + this.meltElement.offsetWidth + "px";
       return this.mainScroller.style.height = "" + this.meltElement.offsetHeight + "px";
-    });
+    };
     hook('resize_palette', 0, function() {
       this.paletteScroller.style.top = "" + this.paletteHeader.offsetHeight + "px";
       this.paletteScroller.style.width = "" + this.paletteCanvas.offsetWidth + "px";
@@ -7342,7 +7401,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.setFontSize = function(fontSize) {
       this.setFontSize_raw(fontSize);
-      return this.resize();
+      return this.resizeBlockMode();
     };
     hook('populate', 0, function() {
       this.markedLines = {};
@@ -7383,12 +7442,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('mousemove', 0, function(point, event, state) {
       var hoveredLine, mainPoint, treeView;
       if ((this.draggingBlock == null) && (this.clickedBlock == null) && this.hasEvent('linehover')) {
+        if (!this.trackerPointIsInMainScroller(point)) {
+          return;
+        }
         mainPoint = this.trackerPointToMain(point);
         treeView = this.view.getViewNodeFor(this.tree);
         if ((this.lastHoveredLine != null) && (treeView.bounds[this.lastHoveredLine] != null) && treeView.bounds[this.lastHoveredLine].contains(mainPoint)) {
           return;
         }
-        hoveredLine = this.findLineNumberAtCoordinate(point.y);
+        hoveredLine = this.findLineNumberAtCoordinate(mainPoint.y);
         if (!treeView.bounds[hoveredLine].contains(mainPoint)) {
           hoveredLine = null;
         }
@@ -7454,8 +7516,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.setValue = function(value) {
       var oldScrollTop;
       oldScrollTop = this.aceEditor.session.getScrollTop();
-      this.aceEditor.setValue(value, -1);
-      this.aceEditor.resize(true);
+      this.setAceValue(value);
+      this.resizeTextMode();
       this.aceEditor.session.setScrollTop(oldScrollTop);
       if (this.currentlyUsingBlocks) {
         return this.setValue_raw(value);
@@ -7472,7 +7534,19 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (this.currentlyUsingBlocks) {
         return this.addEmptyLine(this.tree.stringify());
       } else {
-        return this.aceEditor.getValue();
+        return this.getAceValue();
+      }
+    };
+    Editor.prototype.getAceValue = function() {
+      var value;
+      value = this.aceEditor.getValue();
+      return this.lastAceSeenValue = value;
+    };
+    Editor.prototype.setAceValue = function(value) {
+      if (value !== this.lastAceSeenValue) {
+        console.log('setting ace value');
+        this.aceEditor.setValue(value);
+        return this.lastAceSeenValue = value;
       }
     };
     hook('populate', 0, function() {
@@ -7498,18 +7572,18 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.setEditorState = function(useBlocks) {
       var oldScrollTop;
       if (useBlocks) {
-        this.setValue(this.aceEditor.getValue());
+        this.setValue(this.getAceValue());
         this.meltElement.style.top = this.paletteWrapper.style.top = this.paletteWrapper.style.left = '0px';
         this.meltElement.style.left = "" + this.paletteWrapper.offsetWidth + "px";
         this.aceElement.style.top = this.aceElement.style.left = '-9999px';
         this.currentlyUsingBlocks = true;
         this.lineNumberWrapper.style.display = 'block';
         this.mainCanvas.opacity = this.paletteWrapper.opacity = this.highlightCanvas.opacity = 1;
-        this.resize();
+        this.resizeBlockMode();
         return this.redrawMain();
       } else {
         oldScrollTop = this.aceEditor.session.getScrollTop();
-        this.aceEditor.setValue(this.getValue(), -1);
+        this.setAceValue(this.getValue());
         this.aceEditor.resize(true);
         this.aceEditor.session.setScrollTop(oldScrollTop);
         this.meltElement.style.top = this.meltElement.style.left = this.paletteWrapper.style.top = this.paletteWrapper.style.left = '-9999px';
@@ -7517,7 +7591,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.currentlyUsingBlocks = false;
         this.lineNumberWrapper.style.display = 'none';
         this.mainCanvas.opacity = this.highlightCanvas.opacity = 0;
-        return this.resize();
+        return this.resizeBlockMode();
       }
     };
     hook('populate', 0, function() {
@@ -7639,13 +7713,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.cursorCtx = this.cursorCanvas.getContext('2d');
       return this.meltElement.appendChild(this.cursorCanvas);
     });
-    hook('resize', 0, function() {
+    Editor.prototype.resizeCursorCanvas = function() {
       this.cursorCanvas.width = this.meltElement.offsetWidth;
       this.cursorCanvas.style.width = "" + this.cursorCanvas.width + "px";
       this.cursorCanvas.height = this.meltElement.offsetHeight;
       this.cursorCanvas.style.height = "" + this.cursorCanvas.height + "px";
       return this.cursorCanvas.style.left = "" + this.mainCanvas.offsetLeft + "px";
-    });
+    };
     Editor.prototype.strokeCursor = function(point) {
       var arcAngle, arcCenter, endAngle, h, startAngle, w;
       if (point == null) {
@@ -7763,9 +7837,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.lineNumberTags = {};
       return this.meltElement.appendChild(this.gutter);
     });
-    hook('resize', 0, function() {
-      return this.gutter.style.width = this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
-    });
+    Editor.prototype.resizeGutter = function() {
+      var _ref1, _ref2;
+      this.gutter.style.width = this.aceEditor.renderer.$gutterLayer.gutterWidth + 'px';
+      return this.gutter.style.height = "" + (Math.max(this.meltElement.offsetHeight, (_ref1 = (_ref2 = this.view.getViewNodeFor(this.tree).totalBounds) != null ? _ref2.height : void 0) != null ? _ref1 : 0)) + "px";
+    };
     Editor.prototype.addLineNumberForLine = function(line) {
       var lineDiv, treeView;
       treeView = this.view.getViewNodeFor(this.tree);
@@ -7794,8 +7870,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         if (treeView.bounds[pivot].y > coord) {
           end = pivot;
-        }
-        if (treeView.bounds[pivot].y < coord) {
+        } else {
           start = pivot;
         }
         if (end < 0) {
@@ -7828,13 +7903,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.gutter.style.height = "" + (Math.max(this.mainScroller.offsetHeight, treeView.totalBounds.height)) + "px";
       }
     });
-    hook('resize', 0, function() {
-      var _ref1, _ref2;
-      return this.gutter.style.height = "" + (Math.max(this.meltElement.offsetHeight, (_ref1 = (_ref2 = this.view.getViewNodeFor(this.tree).totalBounds) != null ? _ref2.height : void 0) != null ? _ref1 : 0)) + "px";
-    });
     Editor.prototype.setPaletteWidth = function(width) {
       this.paletteWrapper.style.width = width + 'px';
-      return this.resize();
+      return this.resizeBlockMode();
     };
     hook('populate', 1, function() {
       var pressedVKey, pressedXKey;
@@ -7911,6 +7982,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('keydown', 0, function(event, state) {
       var _ref1;
       if (_ref1 = event.which, __indexOf.call(command_modifiers, _ref1) >= 0) {
+        console.log('FOCUSING');
         if (this.textFocus == null) {
           this.copyPasteInput.focus();
           if (this.lassoSegment != null) {
