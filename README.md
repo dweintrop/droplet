@@ -24,8 +24,9 @@ To embed, call new droplet.Editor() on a div.
 
 ```coffeescript
 require ['droplet'], (droplet) ->
-  editor = new droplet.Editor document.getElementById('editor'), [
-     {
+  editor = new droplet.Editor document.getElementById('editor'), {
+    mode: 'coffeescript'
+    palette: {
         name: 'Palette category'
         color: 'blue'
         blocks: [
@@ -35,7 +36,8 @@ require ['droplet'], (droplet) ->
           }
         ]
       }
-  ]
+    ]
+  }
 
   editor.setValue '''
   for i in [1..10]
