@@ -2874,7 +2874,7 @@ QUAD.init = function (args) {
 
       Container.prototype.isLastOnLine = function() {
         var _ref, _ref1, _ref2, _ref3, _ref4, _ref5;
-        return ((_ref = this.end.nextVisibleToken()) === ((_ref1 = this.parent) != null ? _ref1.end : void 0) || _ref === ((_ref2 = this.parent) != null ? (_ref3 = _ref2.parent) != null ? _ref3.end : void 0 : void 0) || _ref === null) || ((_ref4 = (_ref5 = this.end.nextVisibleToken()) != null ? _ref5.type : void 0) === 'newline' || _ref4 === 'indentEnd');
+        return ((_ref = this.end.nextVisibleToken()) === ((_ref1 = this.parent) != null ? _ref1.end : void 0) || _ref === ((_ref2 = this.parent) != null ? (_ref3 = _ref2.parent) != null ? _ref3.end : void 0 : void 0) || _ref === null) || ((_ref4 = (_ref5 = this.end.nextVisibleToken()) != null ? _ref5.type : void 0) === 'newline' || _ref4 === 'indentStart' || _ref4 === 'indentEnd');
       };
 
       Container.prototype.visParent = function() {
