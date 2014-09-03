@@ -4657,7 +4657,6 @@ QUAD.init = function (args) {
                 right.push(new this.view.draw.Point(rightmost, glueTop + this.view.opts.padding));
               }
             } else if ((this.bounds[line + 1] != null) && this.multilineChildrenData[line] !== MULTILINE_MIDDLE) {
-              console.log(this.model.stringify());
               innerLeft = Math.max(this.bounds[line + 1].x, this.bounds[line].x);
               innerRight = Math.min(this.bounds[line + 1].right(), this.bounds[line].right());
               left.push(new this.view.draw.Point(innerLeft, this.bounds[line].bottom()));
@@ -12809,7 +12808,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     hook('keydown', 0, function(event, state) {
       var _ref1;
       if (_ref1 = event.which, __indexOf.call(command_modifiers, _ref1) >= 0) {
-        console.log('FOCUSING');
         if (this.textFocus == null) {
           this.copyPasteInput.focus();
           if (this.lassoSegment != null) {
