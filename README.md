@@ -28,8 +28,12 @@ To embed, call new droplet.Editor() on a div.
 require ['droplet'], (droplet) ->
   editor = new droplet.Editor document.getElementById('editor'), {
     mode: 'coffeescript'
+<<<<<<< HEAD
     palette: [
      {
+=======
+    palette: {
+>>>>>>> 260a623f04b9ea0a4722b3bdbd960ec4cb173187
         name: 'Palette category'
         color: 'blue'
         blocks: [
