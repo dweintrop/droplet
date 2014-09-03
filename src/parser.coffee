@@ -28,7 +28,7 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
       @markup = []
 
     # ## parse ##
-    parse: (opts) ->
+    _parse: (opts) ->
       opts = _extend opts, {
         wrapAtRoot: true
       }
@@ -51,6 +51,8 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
       segment.correctParentTree()
       segment.isRoot = true
       return segment
+
+    markRoot: ->
 
     isParenWrapped: (block) ->
       (block.start.next.type is 'text' and
@@ -135,6 +137,8 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
         depth: depth
         start: false
 
+      return container
+
     # ## sortMarkup ##
     # Sort the markup by the order
     # in which it will appear in the text.
@@ -156,11 +160,15 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
 
         # If two pieces of markup are in the same position, end markup
         # comes before start markup
+        isDifferent = 1
+        if a.token.container is b.token.container
+          isDifferent = -1
+
         if a.start and not b.start
-          return 1
+          return isDifferent
 
         if b.start and not a.start
-          return -1
+          return -isDifferent
 
         # If two pieces of markup are in the same position,
         # and are both start or end,
@@ -248,7 +256,13 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
 
         # If there is markup on this line, insert it.
         else
-          lastIndex = indentDepth
+          # Flag if this line is not properly indented.
+          if indentDepth >= line.length or line[..indentDepth].trim().length > 0
+            lastIndex = line.length - line.trimLeft().length
+            head.specialIndent = line[0...lastIndex]
+          else
+            lastIndex = indentDepth
+
           for mark in markupOnLines[i]
             # Insert a text token for all the text up until this markup
             # (unless there is no such text
@@ -396,7 +410,6 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
         container.spliceOut()
       else if (head instanceof model.StartToken and
           head.container.flagToStrip)
-        console.log head.container
         head.container.parent?.color = 'error'
         text = head.next
         text.value =
@@ -406,5 +419,32 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
         head = text.next
       else
         head = head.next
+
+  Parser.parens = (leading, trailing, node, context) ->
+    if context is null or context.type isnt 'socket' or
+        context.precedence < node.precedence
+      while true
+        if leading.match(/^\s*\(/)? and trailing.match(/\)\s*/)?
+          leading = leading.replace(/^\s*\(\s*/, '')
+          trailing = trailing.replace(/^\s*\)\s*/, '')
+        else
+          break
+    else
+      leading = '(' + leading
+      trailing = trailing + ')'
+
+    return [leading, trailing]
+
+  Parser.empty = ''
+
+  Parser.parse = (text, opts) ->
+
+  exports.makeParser = (CustomParser) ->
+    CustomParser.parse = (text, opts) ->
+      opts ?= wrapAtRoot: true
+      parser = new CustomParser text
+      return parser._parse opts
+
+  exports.makeParser Parser
 
   return exports

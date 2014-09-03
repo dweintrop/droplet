@@ -709,7 +709,7 @@ define ['droplet-helper',
       unless @before? then return
 
       # Move a clone into position.
-      @spliceIn (clone = @block.clone()), editor.tree.getTokenAtLocation @before
+      editor.spliceIn (clone = @block.clone()), editor.tree.getTokenAtLocation @before
 
       # If the block was the lasso select, register it
       # as such.
@@ -729,10 +729,10 @@ define ['droplet-helper',
 
       # Move it to null.
       if @block.start.type is 'segment'
-        @spliceOut blockStart.container
+        editor.spliceOut blockStart.container
 
       else
-        @spliceOut blockStart.container
+        editor.spliceOut blockStart.container
 
       # Move the cursor somewhere close to what we
       # just deleted.
@@ -756,7 +756,7 @@ define ['droplet-helper',
       until blockStart.type is @block.start.type then blockStart = blockStart.next
 
       # Move it to null.
-      @spliceOut blockStart.container
+      editor.spliceOut blockStart.container
 
       # We may need to replace some of displaced
       # socket text from dropping a block
@@ -2866,7 +2866,6 @@ define ['droplet-helper',
     if @currentlyUsingBlocks and not @currentlyAnimating
       @fireEvent 'statechange', [false]
 
-      @aceEditor.setValue @getValue(), -1
       @setAceValue @getValue()
 
       top = @findLineNumberAtCoordinate @scrollOffsets.main.y
@@ -3438,7 +3437,8 @@ define ['droplet-helper',
 
   Editor::setAceValue = (value) ->
     if value isnt @lastAceSeenValue
-      @aceEditor.setValue value
+      @aceEditor.setValue value, 1
+      # TODO: move ace cursor to location matching droplet cursor.
       @lastAceSeenValue = value
 
 
