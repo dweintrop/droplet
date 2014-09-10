@@ -515,6 +515,12 @@ define ['droplet-helper'], (helper) ->
 
       return head is parent
 
+    visParent: ->
+      head = @parent
+      while head?.type is 'segment' and head.isLassoSegment
+        head = head.parent
+      return head
+
     getCommonParent: (other) ->
       head = @
       until other.hasParent head
@@ -752,13 +758,15 @@ define ['droplet-helper'], (helper) ->
 
   exports.IndentStartToken = class IndentStartToken extends StartToken
     constructor: (@container) -> super; @type = 'indentStart'
-    stringify: (state) -> state.indent += @container.prefix; ''
+    stringify: (state) ->
+      state.indent += @container.prefix; ''
 
   exports.IndentEndToken = class IndentEndToken extends EndToken
     constructor: (@container) -> super; @type = 'indentEnd'
     stringify: (state) ->
-      state.indent = state.indent[...-@container.depth]
-      if @previousVisibleToken().previousVisibleToken() is @container.start then '``' else ''
+      unless @container.prefix.length is 0
+        state.indent = state.indent[...-@container.prefix.length]
+      if @previousVisibleToken().previousVisibleToken() is @container.start then state.emptyToken else ''
     serialize: -> "</indent>"
 
   exports.Indent = class Indent extends Container

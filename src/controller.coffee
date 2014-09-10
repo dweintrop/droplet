@@ -782,7 +782,7 @@ define ['droplet-helper',
     leading = node.getLeadingText()
     trailing = node.getTrailingText()
 
-    [leading, trailing] = @mode.parens leading, trailing, node, null
+    [leading, trailing] = @mode.parens leading, trailing, node.getReader(), null
 
     node.setLeadingText leading; node.setTrailingText trailing
 
@@ -792,7 +792,10 @@ define ['droplet-helper',
     leading = node.getLeadingText()
     trailing = node.getTrailingText()
 
-    [leading, trailing] = @mode.parens leading, trailing, node, (location.container ? location.parent)
+    container = location.container ? location.visParent()
+
+    [leading, trailing] = @mode.parens leading, trailing, node.getReader(),
+      (if container.type is 'block' then container.visParent() else container)?.getReader?() ? null
 
     node.setLeadingText leading; node.setTrailingText trailing
 
@@ -1029,9 +1032,16 @@ define ['droplet-helper',
 
   Editor::getAcceptLevel = (drag, drop) ->
     if drop.type is 'socket'
-      return @mode.drop drag.getReader(), drop.getReader(), null
+      if drag.type is 'segment'
+        return helper.FORBID
+      else
+        return @mode.drop drag.getReader(), drop.getReader(), null
     else if drop.type is 'block'
-      return @mode.drop drag.getReader(), drop.visParent().getReader(), drop
+      console.log drop.visParent()
+      if drop.visParent().type is 'socket'
+        return helper.FORBID
+      else
+        return @mode.drop drag.getReader(), drop.visParent().getReader(), drop
     else
       return @mode.drop drag.getReader(), drop.getReader(), drop.getReader()
 
@@ -2612,7 +2622,7 @@ define ['droplet-helper',
 
         # Construct the block; flag the socket as handwritten
         newBlock = new model.Block(); newSocket = new model.Socket -Infinity
-        @spliceIn newSocket, newBlock.start
+        newSocket.spliceIn newBlock.start
         newSocket.handwritten = true
 
         # Add it io our list of handwritten blocks
@@ -2637,11 +2647,12 @@ define ['droplet-helper',
       else if @textFocus? and not event.shiftKey
         @setTextInputFocus null; @redrawMain()
 
-  hook 'keyup', 0, (point, event, state) ->
+  hook 'keyup', 0, (event, state) ->
     # prevents routing the initial enter keypress to a new handwritten
     # block by focusing the block only after the enter key is released.
     if event.which is ENTER_KEY
       if @newHandwrittenSocket?
+        console.log 'setting tif'
         @setTextInputFocus @newHandwrittenSocket
         @newHandwrittenSocket = null
 
@@ -3537,7 +3548,7 @@ define ['droplet-helper',
       event.changedTouches[index].pageY
     )
 
-    return absolutePoint.from(@absoluteOffset(@dropletElement))
+    return absolutePoint
 
   Editor::queueLassoMousedown = (trackPoint, event) ->
     @lassoSelectStartTimeout = setTimeout (=>
@@ -3834,6 +3845,7 @@ define ['droplet-helper',
 
     @copyPasteInput.addEventListener 'keydown', (event) ->
       if event.keyCode is 86
+        console.log 'PressedVKey'
         pressedVKey = true
       else if event.keyCode is 88
         pressedXKey = true
@@ -3876,6 +3888,8 @@ define ['droplet-helper',
           blocks.unwrap()
 
           @redrawMain()
+        catch e
+          console.log e.stack
 
         @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length
       else if pressedXKey and @lassoSegment?
@@ -3887,6 +3901,7 @@ define ['droplet-helper',
   hook 'keydown', 0, (event, state) ->
     if event.which in command_modifiers
       unless @textFocus?
+        console.log 'focusing', @copyPasteInput
         @copyPasteInput.focus()
         if @lassoSegment?
           @copyPasteInput.value = @lassoSegment.stringify(@mode.empty)

@@ -156,6 +156,12 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
 
     return classes
 
+  annotateCsNodes = (tree) ->
+    tree.eachChild (child) ->
+      child.dropletParent = tree
+      annotateCsNodes child
+    return tree
+
   exports.CoffeeScriptParser = class CoffeeScriptParser extends parser.Parser
     constructor: (@text) ->
       super
@@ -176,7 +182,9 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
       # Get the CoffeeScript AST from the text
       loop
         try
-          nodes = CoffeeScript.nodes(@text).expressions
+          tree = CoffeeScript.nodes(@text)
+          annotateCsNodes tree
+          nodes = tree.expressions
           break
         catch e
           firstError ?= e
@@ -544,9 +552,14 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
         # ### Arr ###
         # Color VALUE, sockets @objects.
         when 'Arr'
-          @csBlock node, depth, 100, 'value', wrappingParen, VALUE_ONLY
+          @csBlock node, depth, 100, 'violet', wrappingParen, VALUE_ONLY
+
+          if node.objects.length > 0
+            @csIndentAndMark indentDepth, node.objects, depth + 1
           for object in node.objects
-            @csSocketAndMark object, depth + 1, 0, indentDepth
+            if object.nodeType() is 'Value' and object.base.nodeType() is 'Literal' and
+                object.properties?.length in [0, undefined]
+              @csBlock object, depth + 2, 100, 'return', null, VALUE_ONLY
 
         # ### Return ###
         # Color RETURN, optional socket @expression.
@@ -598,7 +611,7 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
         # TODO: This doesn't quite line up with what we want it to be visually;
         # maybe our View architecture is wrong.
         when 'Obj'
-          @csBlock node, depth, 0, 'value', wrappingParen, VALUE_ONLY
+          @csBlock node, depth, 0, 'violet', wrappingParen, VALUE_ONLY
 
           for property in node.properties
             if property.nodeType() is 'Assign'
@@ -696,6 +709,13 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
           for property in node.properties
             bounds.end = @boundMax bounds.end, @getBounds(property).end
 
+      # Special case to deal with commas in arrays:
+      if node.dropletParent?.nodeType?() is 'Arr' or
+         node.dropletParent?.nodeType?() is 'Value' and node.dropletParent.dropletParent?.nodeType?() is 'Arr'
+        match = @lines[bounds.end.line][bounds.end.column...].match(/^\s*,\s*/)
+        if match?
+          bounds.end.column += match[0].length
+
       return bounds
 
     flagLineAsMarked: (line) ->
@@ -725,6 +745,40 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
         classes: getClassesFor(node).concat classes
         parenWrapped: wrappingParen?
       }
+
+    # Add an indent node and guess
+    # at the indent depth
+    csIndent: (indentDepth, firstNode, lastNode, depth) ->
+      first = @getBounds(firstNode).start
+      last = @getBounds(lastNode).end
+
+      if @lines[first.line][...first.column].trim().length is 0
+        first.line -= 1
+        first.column = @lines[first.line].length
+
+      if first.line isnt last.line
+        trueDepth = @lines[last.line].length - @lines[last.line].trimLeft().length
+        prefix = @lines[last.line][indentDepth...trueDepth]
+      else
+        trueDepth = indentDepth + 2
+        prefix = '  '
+
+      @addIndent {
+        bounds: {
+          start: first
+          end: last
+        }
+        depth: depth
+
+        prefix: prefix
+      }
+
+      return trueDepth
+
+    csIndentAndMark: (indentDepth, nodes, depth) ->
+      trueDepth = @csIndent indentDepth, nodes[0], nodes[nodes.length - 1], depth
+      for node in nodes
+        @mark node, depth + 1, 0, null, trueDepth
 
     # ## csSocket ##
     # A similar utility function for adding sockets.
@@ -859,12 +913,8 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
 
   CoffeeScriptParser.drop = (block, context, pred) ->
     if context.type is 'socket'
-      if 'forbid-all' in context.classes or
-          block.type is 'segment'
-        return helper.FORBID
-
-      else if 'lvalue' in context.classes
-        if 'Value' in block.classes
+      if 'lvalue' in context.classes
+        if 'Value' in block.classes and block.properties?.length > 0
           return helper.ENCOURAGE
         else
           return helper.FORBID
@@ -878,7 +928,6 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
       else if 'value-only' in block.classes or
           'mostly-value' in block.classes or
           'any-drop' in block.classes
-        console.log block.classes
         return helper.ENCOURAGE
 
       else if 'mostly-block' in block.classes
@@ -895,6 +944,22 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
         return helper.DISCOURAGE
 
     return helper.DISCOURAGE
+
+  CoffeeScriptParser.parens = (leading, trailing, node, context) ->
+    trailing = trailing.replace /\s*,\s*$/, ''
+    if context is null or context.type isnt 'socket' or
+        context.precedence < node.precedence
+      while true
+        if leading.match(/^\s*\(/)? and trailing.match(/\)\s*/)?
+          leading = leading.replace(/^\s*\(\s*/, '')
+          trailing = trailing.replace(/^\s*\)\s*/, '')
+        else
+          break
+    else
+      leading = '(' + leading
+      trailing = trailing + ')'
+
+    return [leading, trailing]
 
   parser.makeParser CoffeeScriptParser
 
