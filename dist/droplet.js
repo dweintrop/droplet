@@ -7889,7 +7889,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('droplet-controller',['droplet-helper', 'droplet-coffee', 'droplet-javascript', 'droplet-draw', 'droplet-model', 'droplet-view'], function(helper, coffee, javascript, draw, model, view) {
-    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BACKSPACE_KEY, BLOCK_ONLY, CONTROL_KEYS, CURSOR_HEIGHT_DECREASE, CURSOR_UNFOCUSED_OPACITY, CURSOR_WIDTH_DECREASE, CreateSegmentOperation, DEBUG_FLAG, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DOWN_ARROW_KEY, DestroySegmentOperation, DropOperation, ENTER_KEY, Editor, FloatingBlockRecord, FromFloatingOperation, LEFT_ARROW_KEY, MAX_DROP_DISTANCE, META_KEYS, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, RIGHT_ARROW_KEY, ReparseOperation, SetValueOperation, TAB_KEY, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, TextReparseOperation, ToFloatingOperation, UP_ARROW_KEY, UndoOperation, VALUE_ONLY, Z_KEY, binding, command_modifiers, command_pressed, containsCursor, deepCopy, deepEquals, editorBindings, escapeString, exports, extend_, getAtChar, getCharactersTo, getOffsetLeft, getOffsetTop, getSocketAtChar, hook, isOSX, isValidCursorPosition, key, last_, touchEvents, unsortedEditorBindings, userAgent, validateLassoSelection, _i, _len, _ref, _ref1;
+    var ANIMATION_FRAME_RATE, ANY_DROP, AnimatedColor, BACKSPACE_KEY, BLOCK_ONLY, CONTROL_KEYS, CURSOR_HEIGHT_DECREASE, CURSOR_UNFOCUSED_OPACITY, CURSOR_WIDTH_DECREASE, CreateSegmentOperation, DEBUG_FLAG, DEFAULT_INDENT_DEPTH, DISCOURAGE_DROP_TIMEOUT, DOWN_ARROW_KEY, DestroySegmentOperation, DropOperation, ENTER_KEY, Editor, FloatingBlockRecord, FromFloatingOperation, LEFT_ARROW_KEY, MAX_DROP_DISTANCE, META_KEYS, MIN_DRAG_DISTANCE, MOSTLY_BLOCK, MOSTLY_VALUE, PALETTE_LEFT_MARGIN, PALETTE_MARGIN, PALETTE_TOP_MARGIN, PickUpOperation, RIGHT_ARROW_KEY, ReparseOperation, SetValueOperation, TAB_KEY, TOUCH_SELECTION_TIMEOUT, TextChangeOperation, TextReparseOperation, ToFloatingOperation, UP_ARROW_KEY, UndoOperation, VALUE_ONLY, Z_KEY, binding, command_modifiers, command_pressed, containsCursor, deepCopy, deepEquals, editorBindings, escapeString, exports, extend_, getAtChar, getCharactersTo, getOffsetLeft, getOffsetTop, getSocketAtChar, hook, isOSX, isValidCursorPosition, key, last_, modes, touchEvents, unsortedEditorBindings, userAgent, validateLassoSelection, _i, _len, _ref, _ref1;
+    modes = {
+      'coffeescript': coffee,
+      'coffee': coffee,
+      'javascript': javascript
+    };
     PALETTE_TOP_MARGIN = 5;
     PALETTE_MARGIN = 5;
     MIN_DRAG_DISTANCE = 1;
@@ -8004,15 +8009,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     exports.Editor = Editor = (function() {
       function Editor(wrapperElement, options) {
-        var binding, boundListeners, dispatchKeyEvent, dispatchMouseEvent, elements, eventName, _fn, _i, _len, _ref1, _ref2;
+        var binding, boundListeners, dispatchKeyEvent, dispatchMouseEvent, elements, eventName, _fn, _i, _len, _ref1, _ref2, _ref3;
         this.wrapperElement = wrapperElement;
         this.options = options;
         this.paletteGroups = this.options.palette;
-        if (this.options.mode === 'coffeescript') {
-          this.mode = coffee;
-        } else if (this.options.mode === 'javascript') {
-          this.mode = javascript;
-        }
+        this.options.mode = this.options.mode.replace(/$\/ace\/mode\//, '');
+        this.mode = (_ref1 = modes[this.options.mode]) != null ? _ref1 : null;
         this.draw = new draw.Draw();
         this.debugging = true;
         this.dropletElement = document.createElement('div');
@@ -8065,9 +8067,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           respectEphemeral: false
         }));
         boundListeners = [];
-        _ref1 = editorBindings.populate;
-        for (_i = 0, _len = _ref1.length; _i < _len; _i++) {
-          binding = _ref1[_i];
+        _ref2 = editorBindings.populate;
+        for (_i = 0, _len = _ref2.length; _i < _len; _i++) {
+          binding = _ref2[_i];
           binding.call(this);
         }
         window.addEventListener('resize', (function(_this) {
@@ -8077,15 +8079,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         })(this));
         dispatchMouseEvent = (function(_this) {
           return function(event) {
-            var handler, state, trackPoint, _j, _len1, _ref2;
+            var handler, state, trackPoint, _j, _len1, _ref3;
             if (event.type !== 'mousemove' && event.which !== 1) {
               return;
             }
             trackPoint = new _this.draw.Point(event.pageX, event.pageY);
             state = {};
-            _ref2 = editorBindings[event.type];
-            for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
-              handler = _ref2[_j];
+            _ref3 = editorBindings[event.type];
+            for (_j = 0, _len1 = _ref3.length; _j < _len1; _j++) {
+              handler = _ref3[_j];
               handler.call(_this, trackPoint, event, state);
             }
             if (typeof event.stopPropagation === "function") {
@@ -8101,18 +8103,18 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         })(this);
         dispatchKeyEvent = (function(_this) {
           return function(event) {
-            var handler, state, _j, _len1, _ref2, _results;
+            var handler, state, _j, _len1, _ref3, _results;
             state = {};
-            _ref2 = editorBindings[event.type];
+            _ref3 = editorBindings[event.type];
             _results = [];
-            for (_j = 0, _len1 = _ref2.length; _j < _len1; _j++) {
-              handler = _ref2[_j];
+            for (_j = 0, _len1 = _ref3.length; _j < _len1; _j++) {
+              handler = _ref3[_j];
               _results.push(handler.call(_this, event, state));
             }
             return _results;
           };
         })(this);
-        _ref2 = {
+        _ref3 = {
           keydown: [this.dropletElement, this.paletteElement],
           keyup: [this.dropletElement, this.paletteElement],
           mousedown: [this.dropletElement, this.paletteElement, this.dragCover],
@@ -8135,8 +8137,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             return _results;
           };
         })(this);
-        for (eventName in _ref2) {
-          elements = _ref2[eventName];
+        for (eventName in _ref3) {
+          elements = _ref3[eventName];
           _fn(eventName, elements);
         }
         this.tree = new model.Segment();
@@ -8144,8 +8146,17 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.resizeBlockMode();
         this.redrawMain();
         this.redrawPalette();
+        if (this.mode == null) {
+          this.setEditorState(false);
+        }
         return this;
       }
+
+      Editor.prototype.setMode = function(mode) {
+        var _ref1;
+        this.mode = (_ref1 = modes[this.options.mode = mode]) != null ? _ref1 : null;
+        return this.setValue(this.getValue());
+      };
 
       Editor.prototype.resizeTextMode = function() {
         this.resizeAceElement();
