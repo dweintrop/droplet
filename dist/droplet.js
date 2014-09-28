@@ -4137,11 +4137,22 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       };
 
       CoffeeScriptParser.prototype.stripComments = function() {
-        var i, line, token, tokens, _i, _j, _len, _ref, _ref1;
-        tokens = CoffeeScript.tokens(this.text, {
-          rewrite: false,
-          preserveComments: true
-        });
+        var i, line, syntaxError, token, tokens, _i, _j, _len, _ref, _ref1;
+        try {
+          tokens = CoffeeScript.tokens(this.text, {
+            rewrite: false,
+            preserveComments: true
+          });
+        } catch (_error) {
+          syntaxError = _error;
+          if (syntaxError.location) {
+            syntaxError.loc = {
+              line: syntaxError.location.first_line,
+              column: syntaxError.location.first_column
+            };
+          }
+          throw syntaxError;
+        }
         for (_i = 0, _len = tokens.length; _i < _len; _i++) {
           token = tokens[_i];
           if (token[0] === 'COMMENT') {
