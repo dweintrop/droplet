@@ -2735,7 +2735,9 @@ define ['droplet-helper',
   Editor::changeFromAceEditor = ->
     if @changeFromAceTimer then return
     @changeFromAceTimer = setTimeout (=>
-      @copyAceEditor()
+      result = @copyAceEditor()
+      if not result.success and result.error
+        @fireEvent 'parseerror', result.error
     ), 0
 
   hook 'populate', 0, ->
@@ -3040,6 +3042,8 @@ define ['droplet-helper',
       setValueResult = @copyAceEditor()
 
       unless setValueResult.success
+        if setValueResult.error
+          @fireEvent 'parseerror', setValueResult.error
         return setValueResult
 
       if @aceEditor.getFirstVisibleRow() is 0
@@ -3426,8 +3430,8 @@ define ['droplet-helper',
 
       return success: true
 
-    catch
-      return success: false
+    catch e
+      return success: false, error: e
 
   Editor::setValue = (value) ->
 
@@ -3443,6 +3447,8 @@ define ['droplet-helper',
       if result.success is false
         @setEditorState false
         @aceEditor.setValue value
+        if result.error
+          @fireEvent 'parseerror', result.error
 
   Editor::addEmptyLine = (str) ->
     if str.length is 0 or str[str.length - 1] is '\n'
