@@ -4114,6 +4114,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             if (retries > 0 && fixCoffeeScriptError(this.lines, e)) {
               this.text = this.lines.join('\n');
             } else {
+              if (firstError.location) {
+                firstError.loc = {
+                  line: firstError.location.first_line,
+                  column: firstError.location.first_column
+                };
+              }
               throw firstError;
             }
           }
@@ -10306,7 +10312,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
       return this.changeFromAceTimer = setTimeout(((function(_this) {
         return function() {
-          return _this.copyAceEditor();
+          var result;
+          result = _this.copyAceEditor();
+          if (!result.success && result.error) {
+            return _this.fireEvent('parseerror', result.error);
+          }
         };
       })(this)), 0);
     };
@@ -10564,6 +10574,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       if (!this.currentlyUsingBlocks && !this.currentlyAnimating) {
         setValueResult = this.copyAceEditor();
         if (!setValueResult.success) {
+          if (setValueResult.error) {
+            this.fireEvent('parseerror', setValueResult.error);
+          }
           return setValueResult;
         }
         if (this.aceEditor.getFirstVisibleRow() === 0) {
@@ -10888,7 +10901,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.trimWhitespace = trimWhitespace;
     };
     Editor.prototype.setValue_raw = function(value) {
-      var newParse;
+      var e, newParse;
       try {
         if (this.trimWhitespace) {
           value = value.trim();
@@ -10909,8 +10922,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           success: true
         };
       } catch (_error) {
+        e = _error;
         return {
-          success: false
+          success: false,
+          error: e
         };
       }
     };
@@ -10924,7 +10939,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         result = this.setValue_raw(value);
         if (result.success === false) {
           this.setEditorState(false);
-          return this.aceEditor.setValue(value);
+          this.aceEditor.setValue(value);
+          if (result.error) {
+            return this.fireEvent('parseerror', result.error);
+          }
         }
       }
     };
