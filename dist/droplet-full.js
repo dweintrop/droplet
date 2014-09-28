@@ -11978,7 +11978,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           var result;
           result = _this.copyAceEditor();
           if (!result.success && result.error) {
-            return _this.fireEvent('parseerror', result.error);
+            return _this.fireEvent('parseerror', [result.error]);
           }
         };
       })(this)), 0);
@@ -12238,7 +12238,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         setValueResult = this.copyAceEditor();
         if (!setValueResult.success) {
           if (setValueResult.error) {
-            this.fireEvent('parseerror', setValueResult.error);
+            this.fireEvent('parseerror', [setValueResult.error]);
           }
           return setValueResult;
         }
@@ -12604,7 +12604,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.setEditorState(false);
           this.aceEditor.setValue(value);
           if (result.error) {
-            return this.fireEvent('parseerror', result.error);
+            return this.fireEvent('parseerror', [result.error]);
           }
         }
       }
