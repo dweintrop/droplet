@@ -27,19 +27,26 @@ To embed, call new droplet.Editor() on a div.
 ```coffeescript
 require ['droplet'], (droplet) ->
   editor = new droplet.Editor document.getElementById('editor'), {
+    # Language
     mode: 'coffeescript'
-<<<<<<< HEAD
+
+    # Options for the CoffeeScript parser
+    # (the JavaScript parser currently takes the same options)
+    modeOptions: {
+      blockFunctions: ['fd', 'rt', 'lt', 'alert'] # Override which blocks turn blue (names not here will be purple and have editable names)
+      valueFunctions: ['sin', 'cos'] # Same for green blocks. Defaults are the pencilcode functions.
+      eitherFunctions: ['write', 'confirm']
+    }
+
+    # Palette description
     palette: [
      {
-=======
-    palette: {
->>>>>>> 260a623f04b9ea0a4722b3bdbd960ec4cb173187
         name: 'Palette category'
-        color: 'blue'
+        color: 'blue' # Header color
         blocks: [
           {
             block: "for [1..3]\n  ``"
-            title: "Repeat some code"
+            title: "Repeat some code" # title-text
           }
         ]
       }
@@ -82,9 +89,7 @@ define ['droplet-helper', 'droplet-parser'], (helper, parser) ->
   class MyParser extends parser.Parser
     markRoot: ->
 
-  parser.makeParser MyParser
-
-  return MyParser
+  return parser.wrapParser MyParser
 ```
 
 Put it in `src/myparser.coffee`. Add it to the build system in `requirejs-paths.json`:
@@ -125,6 +130,9 @@ To have your parser actually put blocks in, you will need to do some things in t
 ```coffeescript
 # Get the raw text passed into the parser:
 @text
+
+# Get the `modeOptions` passed down from editor instantiation
+@opts
 
 # Add a Block
 @addBlock({

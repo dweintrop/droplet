@@ -143,7 +143,10 @@ define ['droplet-helper',
 
       @options.mode = @options.mode.replace /$\/ace\/mode\//, ''
 
-      @mode = modes[@options.mode] ? null
+      if @options.mode of modes
+        @mode = new modes[@options.mode] @options.modeOptions
+      else
+        @mode = new coffee @options.modeOptions
 
       @draw = new draw.Draw()
 
@@ -244,7 +247,7 @@ define ['droplet-helper',
         # ignore mouse clicks that are not the left-button
         if event.type isnt 'mousemove' and event.which isnt 1 then return
 
-        trackPoint = new @draw.Point(event.pageX, event.pageY)
+        trackPoint = new @draw.Point(event.clientX, event.clientY)
 
         # We keep a state object so that handlers
         # can know about each other.
@@ -1178,6 +1181,17 @@ define ['droplet-helper',
       if @lastHighlight.type is 'socket'
         @reparseRawReplace @draggingBlock.parent.parent
 
+      else
+        # If what we've dropped has a socket in it,
+        # focus it.
+        head = @draggingBlock.start
+        until head.type is 'socketStart' and head.container.isDroppable() or head is @draggingBlock.end
+          head = head.next
+
+        if head.type is 'socketStart'
+          @setTextInputFocus null
+          @setTextInputFocus head.container
+
       # Now that we've done that, we can annul stuff.
       @endDrag()
 
@@ -1543,7 +1557,7 @@ define ['droplet-helper',
       do (block) =>
         hoverDiv.addEventListener 'mousemove', (event) =>
           palettePoint = @trackerPointToPalette new @draw.Point(
-              event.pageX, event.pageY)
+              event.clientX, event.clientY)
           if @mainViewOrChildrenContains block, palettePoint
             unless block is @currentHighlightedPaletteBlock
               @clearPaletteHighlightCanvas()
@@ -3596,8 +3610,8 @@ define ['droplet-helper',
 
   Editor::touchEventToPoint = (event, index) ->
     absolutePoint = new @draw.Point(
-      event.changedTouches[index].pageX,
-      event.changedTouches[index].pageY
+      event.changedTouches[index].clientX,
+      event.changedTouches[index].clientY
     )
 
     return absolutePoint
