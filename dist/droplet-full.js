@@ -3572,7 +3572,7 @@ QUAD.init = function (args) {
   var __indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; },
     __hasProp = {}.hasOwnProperty,
     __extends = function(child, parent) { for (var key in parent) { if (__hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
-    __modulo = function(a, b) { return (a % b + +b) % b; };
+    __modulo = function(a, b) { return (+a % (b = +b) + b) % b; };
 
   define('droplet-view',['droplet-helper', 'droplet-draw', 'droplet-model'], function(helper, draw, model) {
     var ANY_DROP, BLOCK_ONLY, CARRIAGE_ARROW_INDENT, CARRIAGE_ARROW_NONE, CARRIAGE_ARROW_SIDEALONG, CARRIAGE_GROW_DOWN, DEFAULT_OPTIONS, MOSTLY_BLOCK, MOSTLY_VALUE, MULTILINE_END, MULTILINE_END_START, MULTILINE_MIDDLE, MULTILINE_START, NO, NO_MULTILINE, VALUE_ONLY, View, YES, arrayEq, avgColor, defaultStyleObject, exports, toHex, toRGB, twoDigitHex, zeroPad;
@@ -9911,10 +9911,21 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this;
       }
 
-      Editor.prototype.setMode = function(mode) {
-        var _ref1;
-        this.mode = (_ref1 = modes[this.options.mode = mode]) != null ? _ref1 : null;
+      Editor.prototype.setMode = function(mode, modeOptions) {
+        var modeClass;
+        modeClass = modes[mode];
+        if (modeClass) {
+          this.options.mode = mode;
+          this.mode = new modeClass(modeOptions);
+        } else {
+          this.options.mode = null;
+          this.mode = null;
+        }
         return this.setValue(this.getValue());
+      };
+
+      Editor.prototype.getMode = function() {
+        return this.options.mode;
       };
 
       Editor.prototype.resizeTextMode = function() {
@@ -10371,7 +10382,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.highlightCanvas = document.createElement('canvas');
       this.highlightCanvas.className = 'droplet-highlight-canvas';
       this.highlightCtx = this.highlightCanvas.getContext('2d');
-      document.body.appendChild(this.dragCanvas);
+      this.wrapperElement.appendChild(this.dragCanvas);
       return this.dropletElement.appendChild(this.highlightCanvas);
     });
     Editor.prototype.clearHighlightCanvas = function() {
@@ -10520,11 +10531,13 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     hook('mousemove', 0, function(point, event, state) {
-      var best, head, mainPoint, min, palettePoint, position, testPoints, _ref1, _ref2, _ref3;
+      var best, head, mainPoint, min, palettePoint, position, rect, testPoints, _ref1, _ref2, _ref3;
       if (this.draggingBlock != null) {
         position = new this.draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
-        this.dragCanvas.style.top = "" + position.y + "px";
-        this.dragCanvas.style.left = "" + position.x + "px";
+        rect = this.wrapperElement.getBoundingClientRect();
+        console.log(position.x - this.wrapperElement.getBoundingClientRect().left, position.y - this.wrapperElement.getBoundingClientRect().top);
+        this.dragCanvas.style.top = "" + (position.y - rect.top) + "px";
+        this.dragCanvas.style.left = "" + (position.x - rect.left) + "px";
         mainPoint = this.trackerPointToMain(position);
         best = null;
         min = Infinity;
@@ -12122,8 +12135,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       head = this.tree.start;
       aceSession = this.aceEditor.session;
       state = {
-        x: (this.aceEditor.container.getBoundingClientRect().left - getOffsetLeft(this.aceElement) + this.aceEditor.renderer.$gutterLayer.gutterWidth) - this.gutter.offsetWidth + 5,
-        y: (this.aceEditor.container.getBoundingClientRect().top - getOffsetTop(this.aceElement)) - aceSession.getScrollTop(),
+        x: (this.aceEditor.container.getBoundingClientRect().left - this.aceElement.getBoundingClientRect().left + this.aceEditor.renderer.$gutterLayer.gutterWidth) - this.gutter.offsetWidth + 5,
+        y: (this.aceEditor.container.getBoundingClientRect().top - this.aceElement.getBoundingClientRect().top) - aceSession.getScrollTop(),
         indent: 0,
         lineHeight: this.aceEditor.renderer.layerConfig.lineHeight,
         leftEdge: (this.aceEditor.container.getBoundingClientRect().left - getOffsetLeft(this.aceElement) + this.aceEditor.renderer.$gutterLayer.gutterWidth) - this.gutter.offsetWidth + 5
