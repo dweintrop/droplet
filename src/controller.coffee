@@ -306,9 +306,18 @@ define ['droplet-helper',
 
       return this
 
-    setMode: (mode) ->
-      @mode = modes[@options.mode = mode] ? null
+    setMode: (mode, modeOptions) ->
+      modeClass = modes[mode]
+      if modeClass
+        @options.mode = mode
+        @mode = new modeClass modeOptions
+      else
+        @options.mode = null
+        @mode = null
       @setValue @getValue()
+
+    getMode: ->
+      @options.mode
 
     # ## Foundational Resize
     # At the editor core, we will need to resize
@@ -856,7 +865,8 @@ define ['droplet-helper',
     # We append it to the tracker element,
     # so that it can appear in front of the scrollers.
     #@dropletElement.appendChild @dragCanvas
-    document.body.appendChild @dragCanvas
+    #document.body.appendChild @dragCanvas
+    @wrapperElement.appendChild @dragCanvas
     @dropletElement.appendChild @highlightCanvas
 
   Editor::clearHighlightCanvas = ->
@@ -1079,8 +1089,13 @@ define ['droplet-helper',
         point.y + @draggingOffset.y
       )
 
-      @dragCanvas.style.top = "#{position.y}px"
-      @dragCanvas.style.left = "#{position.x}px"
+      rect = @wrapperElement.getBoundingClientRect()
+
+      console.log position.x - @wrapperElement.getBoundingClientRect().left,
+          position.y - @wrapperElement.getBoundingClientRect().top
+
+      @dragCanvas.style.top = "#{position.y - rect.top}px"
+      @dragCanvas.style.left = "#{position.x - rect.left}px"
 
       mainPoint = @trackerPointToMain(position)
 
@@ -2814,11 +2829,11 @@ define ['droplet-helper',
       # Initial cursor positions are
       # determined by ACE editor configuration.
       x: (@aceEditor.container.getBoundingClientRect().left -
-          getOffsetLeft(@aceElement) +
+          @aceElement.getBoundingClientRect().left +
           @aceEditor.renderer.$gutterLayer.gutterWidth) -
           @gutter.offsetWidth + 5 # TODO find out where this 5 comes from
       y: (@aceEditor.container.getBoundingClientRect().top -
-          getOffsetTop(@aceElement)) -
+          @aceElement.getBoundingClientRect().top) -
           aceSession.getScrollTop()
 
       # Initial indent depth is 0
