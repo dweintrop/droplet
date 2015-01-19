@@ -12534,6 +12534,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.mainScrollerStuffing.className = 'droplet-main-scroller-stuffing';
       this.mainScroller.appendChild(this.mainScrollerStuffing);
       this.dropletElement.appendChild(this.mainScroller);
+      this.wrapperElement.addEventListener('scroll', (function(_this) {
+        return function() {
+          return _this.wrapperElement.scrollTop = _this.wrapperElement.scrollLeft = 0;
+        };
+      })(this));
       this.mainScroller.addEventListener('scroll', (function(_this) {
         return function() {
           _this.scrollOffsets.main.y = _this.mainScroller.scrollTop;
