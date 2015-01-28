@@ -8120,7 +8120,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       'redraw_main': [],
       'redraw_palette': [],
       'rebuild_palette': [],
-      'set_palette': [],
       'mousedown': [],
       'mousemove': [],
       'mouseup': [],
@@ -8192,6 +8191,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           ctx: this.mainCtx,
           draw: this.draw
         };
+        this.bindings = {};
         this.view = new view.View(extend_(this.standardViewSettings, {
           respectEphemeral: true
         }));
@@ -9279,15 +9279,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             return _this.rebuildPalette();
           };
           clickHandler = function() {
-            var event, _k, _len2, _ref3, _results;
-            updatePalette();
-            _ref3 = editorBindings.set_palette;
-            _results = [];
-            for (_k = 0, _len2 = _ref3.length; _k < _len2; _k++) {
-              event = _ref3[_k];
-              _results.push(event.call(_this));
-            }
-            return _results;
+            return updatePalette();
           };
           paletteGroupHeader.addEventListener('click', clickHandler);
           paletteGroupHeader.addEventListener('touchstart', clickHandler);
@@ -9347,7 +9339,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.paletteHighlightPath.draw(this.paletteHighlightCtx);
       }
     });
-    hook('rebuild_palette', 0, function() {
+    hook('rebuild_palette', 1, function() {
       var block, bounds, data, hoverDiv, _fn, _i, _len, _ref1, _ref2, _results;
       this.paletteScrollerStuffing.innerHTML = '';
       this.currentHighlightedPaletteBlock = null;
@@ -11185,9 +11177,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return this.lastAceSeenValue = value;
       }
     };
-    hook('populate', 0, function() {
-      return this.bindings = {};
-    });
     Editor.prototype.on = function(event, handler) {
       return this.bindings[event] = handler;
     };
@@ -11257,7 +11246,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.clearDrag();
       this.redrawMain();
     };
-    hook('set_palette', 0, function() {
+    hook('rebuild_palette', 0, function() {
       return this.fireEvent('changepalette', []);
     });
     touchEvents = {
