@@ -10,112 +10,33 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
 
   NEVER_PAREN = 100
 
-  BLOCK_FUNCTIONS = [
-    'fd'
-    'bk'
-    'rt'
-    'lt'
-    'slide'
-    'movexy'
-    'moveto'
-    'jump'
-    'jumpto'
-    'turnto'
-    'home'
-    'pen'
-    'fill'
-    'dot'
-    'box'
-    'mirror'
-    'twist'
-    'scale'
-    'pause'
-    'st'
-    'ht'
-    'cs'
-    'cg'
-    'ct'
-    'pu'
-    'pd'
-    'pe'
-    'pf'
-    'play'
-    'tone'
-    'silence'
-    'speed'
-    'wear'
-    'write'
-    'drawon'
-    'label'
-    'reload'
-    'see'
-    'sync'
-    'send'
-    'recv'
-    'click'
-    'mousemove'
-    'mouseup'
-    'mousedown'
-    'keyup'
-    'keydown'
-    'keypress'
-    'alert'
-  ]
-
-  VALUE_FUNCTIONS = [
-    'abs'
-    'acos'
-    'asin'
-    'atan'
-    'atan2'
-    'cos'
-    'sin'
-    'tan'
-    'ceil'
-    'floor'
-    'round'
-    'exp'
-    'ln'
-    'log10'
-    'pow'
-    'sqrt'
-    'max'
-    'min'
-    'random'
-    'pagexy'
-    'getxy'
-    'direction'
-    'distance'
-    'shown'
-    'hidden'
-    'inside'
-    'touches'
-    'within'
-    'notwithin'
-    'nearest'
-    'pressed'
-    'canvas'
-    'hsl'
-    'hsla'
-    'rgb'
-    'rgba'
-    'cell'
-  ]
-
-  EITHER_FUNCTIONS = [
-    'button'
-    'read'
-    'readstr'
-    'readnum'
-    'table'
-    'append'
-    'finish'
-    'loadscript'
-  ]
-
+  KNOWN_FUNCTIONS =
+    'alert'       : {}
+    'prompt'      : {}
+    'console.log' : {}
+    'Math.abs'    : {value: true}
+    'Math.acos'   : {value: true}
+    'Math.asin'   : {value: true}
+    'Math.atan'   : {value: true}
+    'Math.atan2'  : {value: true}
+    'Math.cos'    : {value: true}
+    'Math.sin'    : {value: true}
+    'Math.tan'    : {value: true}
+    'Math.ceil'   : {value: true}
+    'Math.floor'  : {value: true}
+    'Math.round'  : {value: true}
+    'Math.exp'    : {value: true}
+    'Math.ln'     : {value: true}
+    'Math.log10'  : {value: true}
+    'Math.pow'    : {value: true}
+    'Math.sqrt'   : {value: true}
+    'Math.max'    : {value: true}
+    'Math.min'    : {value: true}
+    'Math.random' : {value: true}
 
   COLORS = {
     'BinaryExpression': 'value'
+    'UnaryExpression': 'value'
     'FunctionExpression': 'value'
     'FunctionDeclaration': 'violet'
     'AssignmentExpression': 'command'
@@ -141,6 +62,8 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
     'ConditionalExpression': 'value'
   }
 
+  # See https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+  # These numbers are "19 - x" so that the lowest numbers bind most tightly.
   OPERATOR_PRECEDENCES = {
     '*': 5
     '/': 5
@@ -160,10 +83,10 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
     '===': 9
     '!==': 9
     '&': 10
-    '^': 10
-    '|': 10
-    '&&': 10
-    '||': 10
+    '^': 11
+    '|': 12
+    '&&': 13
+    '||': 14
   }
 
   CLASS_EXCEPTIONS = {
@@ -182,10 +105,7 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
     constructor: (@text, @opts = {}) ->
       super
 
-      @opts.blockFunctions ?= BLOCK_FUNCTIONS
-      @opts.valueFunctions ?= VALUE_FUNCTIONS
-      @opts.eitherFunctions ?= EITHER_FUNCTIONS
-      @functionWhitelist = @opts.blockFunctions.concat(@opts.eitherFunctions).concat(@opts.valueFunctions)
+      @opts.functions ?= KNOWN_FUNCTIONS
 
       @lines = @text.split '\n'
 
@@ -193,11 +113,36 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
       tree = acorn.parse(@text, {
         locations: true
         line: 0
+        allowReturnOutsideFunction: true
       })
 
       #console.log 'PROGRAM IS', JSON.stringify tree, null, 2
 
       @mark 0, tree, 0, null
+
+    fullFunctionNameArray: (node) ->
+      if node.type isnt 'CallExpression' then throw new Error
+      obj = node.callee
+      props = []
+      while obj.type is 'MemberExpression'
+        props.unshift obj.property.name
+        obj = obj.object
+      if obj.type is 'Identifier'
+        props.unshift obj.name
+      else
+        props.unshift '*'
+      props
+
+    lookupFunctionName: (node) ->
+      fname = @fullFunctionNameArray node
+      if fname.length > 1
+        full = fname.join '.'
+        if full of @opts.functions
+          return name: full, dotted: true, fn: @opts.functions[full]
+      last = fname[fname.length - 1]
+      if last of @opts.functions
+        return name: last, dotted: false, fn: @opts.functions[last]
+      return null
 
     getAcceptsRule: (node) -> default: helper.NORMAL
     getClasses: (node) ->
@@ -205,12 +150,13 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
         return CLASS_EXCEPTIONS[node.type].concat([node.type])
       else
         if node.type is 'CallExpression'
-          if node.callee.type is 'Identifier' and node.callee.name in @opts.blockFunctions
-            return [node.type, 'mostly-block']
-          else if node.callee.name in @opts.valueFunctions
+          known = @lookupFunctionName node
+          if not known or (known.fn.value and known.fn.command)
+            return [node.type, 'any-drop']
+          if known.fn.value
             return [node.type, 'mostly-value']
           else
-            return [node.type, 'any-drop']
+            return [node.type, 'mostly-block']
         if node.type.match(/Expression$/)?
           return [node.type, 'mostly-value']
         else if node.type.match(/(Statement|Declaration)$/)?
@@ -223,9 +169,18 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
         when 'BinaryExpression'
           return OPERATOR_PRECEDENCES[node.operator]
         when 'AssignStatement'
-          return 17
+          return 16
+        when 'UnaryExpression'
+          if node.prefix
+            return 4
+          else
+            return 3
         when 'CallExpression'
           return 2
+        when 'NewExpression'
+          return 2
+        when 'MemberExpression'
+          return 1
         when 'ExpressionStatement'
           return @getPrecedence node.expression
         else
@@ -236,13 +191,15 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
         when 'ExpressionStatement'
           return @getColor node.expression
         when 'CallExpression'
-          if node.callee.type is 'Identifier'
-            if node.callee.name in @opts.blockFunctions
-              return 'command'
-            else if node.callee.name in @opts.valueFunctions
-              return 'value'
-            else
-              return 'violet'
+          known = @lookupFunctionName node
+          if not known
+            return 'violet'
+          else if known.fn.color
+            return known.fn.color
+          else if known.fn.value and not known.fn.command
+            return 'value'
+          else
+            return 'command'
         else
           return COLORS[node.type]
 
@@ -399,6 +356,9 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
           @jsBlock node, depth, bounds
           @jsSocketAndMark indentDepth, node.left, depth + 1, OPERATOR_PRECEDENCES[node.operator]
           @jsSocketAndMark indentDepth, node.right, depth + 1, OPERATOR_PRECEDENCES[node.operator]
+        when 'UnaryExpression'
+          @jsBlock node, depth, bounds
+          @jsSocketAndMark indentDepth, node.argument, depth + 1, @getPrecedence node
         when 'ExpressionStatement'
           @mark indentDepth, node.expression, depth + 1, @getBounds node
         when 'Identifier'
@@ -407,7 +367,8 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
             block.flagToRemove = true
         when 'CallExpression', 'NewExpression'
           @jsBlock node, depth, bounds
-          if node.callee.type isnt 'Identifier' or node.callee.name not in @functionWhitelist
+          known = @lookupFunctionName node
+          if not known
             @jsSocketAndMark indentDepth, node.callee, depth + 1, NEVER_PAREN
           for argument in node.arguments
             @jsSocketAndMark indentDepth, argument, depth + 1, NEVER_PAREN
@@ -506,23 +467,21 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], (helper, 
        (not context? and 'mostly-value' in node.classes or 'value-only' in node.classes) or
        'ends-with-brace' in node.classes or
        node.type is 'segment'
-      trailing = trailing.replace(/;?\s*$/, '')
+      trailing trailing().replace(/;?\s*$/, '')
     else
-      trailing = trailing.replace(/;?\s*$/, ';')
+      trailing trailing().replace(/;?\s*$/, ';')
 
     if context is null or context.type isnt 'socket' or
         context.precedence > node.precedence
       while true
-        if leading.match(/^\s*\(/)? and trailing.match(/\)\s*/)?
-          leading = leading.replace(/^\s*\(\s*/, '')
-          trailing = trailing.replace(/^\s*\)\s*/, '')
+        if leading().match(/^\s*\(/)? and trailing().match(/\)\s*/)?
+          leading leading().replace(/^\s*\(\s*/, '')
+          trailing trailing().replace(/\s*\)\s*$/, '')
         else
           break
     else
-      leading = '(' + leading
-      trailing = trailing + ')'
-
-    return [leading, trailing]
+      leading '(' + leading()
+      trailing trailing() + ')'
 
   JavaScriptParser.drop = (block, context, pred) ->
     if context.type is 'socket'

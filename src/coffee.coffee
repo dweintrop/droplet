@@ -16,130 +16,60 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
   FORBID_ALL = ['forbid-all']
   PROPERTY_ACCESS = ['prop-access']
 
-  BLOCK_FUNCTIONS = [
-    'fd'
-    'bk'
-    'rt'
-    'lt'
-    'slide'
-    'move'
-    'movexy'
-    'moveto'
-    'jump'
-    'jumpxy'
-    'jumpto'
-    'turnto'
-    'home'
-    'pen'
-    'fill'
-    'dot'
-    'box'
-    'mirror'
-    'twist'
-    'scale'
-    'pause'
-    'st'
-    'ht'
-    'cs'
-    'cg'
-    'ct'
-    'pu'
-    'pd'
-    'pe'
-    'pf'
-    'play'
-    'tone'
-    'silence'
-    'speed'
-    'wear'
-    'drawon'
-    'label'
-    'reload'
-    'see'
-    'sync'
-    'send'
-    'recv'
-    'click'
-    'mousemove'
-    'mouseup'
-    'mousedown'
-    'keyup'
-    'keydown'
-    'keypress'
-    'alert'
-    'prompt'
-    'done'
-    'tick'
-    'type'
-    'log'
-  ]
-
-  VALUE_FUNCTIONS = [
-    'abs'
-    'acos'
-    'asin'
-    'atan'
-    'atan2'
-    'cos'
-    'sin'
-    'tan'
-    'ceil'
-    'floor'
-    'round'
-    'exp'
-    'ln'
-    'log10'
-    'pow'
-    'sqrt'
-    'max'
-    'min'
-    'random'
-    'pagexy'
-    'getxy'
-    'direction'
-    'distance'
-    'shown'
-    'hidden'
-    'inside'
-    'touches'
-    'within'
-    'notwithin'
-    'nearest'
-    'pressed'
-    'canvas'
-    'hsl'
-    'hsla'
-    'rgb'
-    'rgba'
-    'cell'
-    '$'
-    'match'
-    'toString'
-    'charCodeAt'
-    'fromCharCode'
-    'split'
-    'join'
-    'sort'
-  ]
-
-  EITHER_FUNCTIONS = [
-    'button'
-    'read'
-    'readstr'
-    'readnum'
-    'write'
-    'table'
-    'append'
-    'finish'
-    'loadscript'
-    'text'
-    'html'
-  ]
+  KNOWN_FUNCTIONS =
+    'alert'       : {}
+    'prompt'      : {}
+    'console.log' : {}
+    'Math.abs'    : {value: true}
+    'Math.acos'   : {value: true}
+    'Math.asin'   : {value: true}
+    'Math.atan'   : {value: true}
+    'Math.atan2'  : {value: true}
+    'Math.cos'    : {value: true}
+    'Math.sin'    : {value: true}
+    'Math.tan'    : {value: true}
+    'Math.ceil'   : {value: true}
+    'Math.floor'  : {value: true}
+    'Math.round'  : {value: true}
+    'Math.exp'    : {value: true}
+    'Math.ln'     : {value: true}
+    'Math.log10'  : {value: true}
+    'Math.pow'    : {value: true}
+    'Math.sqrt'   : {value: true}
+    'Math.max'    : {value: true}
+    'Math.min'    : {value: true}
+    'Math.random' : {value: true}
 
   STATEMENT_KEYWORDS = [
     'break'
     'continue'
   ]
+
+  ###
+  OPERATOR_PRECEDENCES =
+    '*': 5
+    '/': 5
+    '%': 5
+    '+': 6
+    '-': 6
+    '<<': 7
+    '>>': 7
+    '>>>': 7
+    '<': 8
+    '>': 8
+    '>=': 8
+    'in': 8
+    'instanceof': 8
+    '==': 9
+    '!=': 9
+    '===': 9
+    '!==': 9
+    '&': 10
+    '^': 11
+    '|': 12
+    '&&': 13
+    '||': 14
+  ###
 
   OPERATOR_PRECEDENCES =
     '||': 1
@@ -183,9 +113,7 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
     constructor: (@text, @opts = {}) ->
       super
 
-      @opts.blockFunctions ?= BLOCK_FUNCTIONS
-      @opts.valueFunctions ?= VALUE_FUNCTIONS
-      @opts.eitherFunctions ?= EITHER_FUNCTIONS
+      @opts.functions ?= KNOWN_FUNCTIONS
 
       @lines = @text.split '\n'
 
@@ -278,9 +206,60 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
       # by blocks if they are outside anything else.
       return null
 
+    functionNameNodes: (node) ->
+      if node.nodeType() isnt 'Call' then throw new Error
+      if node.variable?
+        # Two possible forms of a Call node:
+        # fn(...) ->
+        #    node.variable.base = fn
+        # x.y.z.fn()
+        #    node.variable.base = x
+        #    properties = [y, z, fn]
+        nodes = []
+        if node.variable.base?.value
+          nodes.push node.variable.base
+        else
+          nodes.push null
+        if node.variable.properties?
+          for prop in node.variable.properties
+              nodes.push prop.name
+        return nodes
+      return []
+
+    emptyLocation: (loc) ->
+      loc.first_column is loc.last_column and loc.first_line is loc.last_line
+
+    implicitName: (nn) ->
+      # Deal with weird coffeescript rewrites, e.g., /// #{x} ///
+      # is rewritten to RegExp(...)
+      if nn.length is 0 then return false
+      node = nn[nn.length - 1]
+      return node?.value?.length > 1 and @emptyLocation node.locationData
+
+    lookupFunctionName: (nn) ->
+      # Test the name nodes list against the given list, and return
+      # null if not found, or a tuple of information about the match.
+      if nn.length > 1
+        full = (nn.map (n) -> n?.value or '*').join '.'
+        if full of @opts.functions
+          return name: full, dotted: true, fn: @opts.functions[full]
+      last = nn[nn.length - 1]
+      if last? and last.value of @opts.functions
+        return name: last.value, dotted: false, fn: @opts.functions[last.value]
+      return null
+
+    # ## addCode ##
+    # This shared logic handles the sockets for the Code function
+    # definitions, even when merged into a parent block.
+    addCode: (node, depth, indentDepth) ->
+      for param in node.params
+        @csSocketAndMark param, depth, 0, indentDepth, FORBID_ALL
+      @mark node.body, depth, 0, null, indentDepth
+
     # ## mark ##
     # Mark a single node.  The main recursive function.
     mark: (node, depth, precedence, wrappingParen, indentDepth) ->
+
       switch node.nodeType()
 
         # ### Block ###
@@ -462,50 +441,29 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
         # is only some text
         when 'Call'
           if node.variable?
-            methodname = null
-            unrecognized = false
-            # Two possible forms of a Call node:
-            # fn(...) ->
-            #    node.variable.base = fn
-            # x.y.z.fn()
-            #    node.variable.base = x
-            #    properties = [y, z, fn]
-            if node.variable.properties?.length > 0
-              methodname = node.variable.
-                  properties[node.variable.properties.length - 1].name?.value
-              namenode = node.variable.
-                  properties[node.variable.properties.length - 1].name
-            else if node.variable.base?.value
-              methodname = node.variable.base.value
-              namenode = node.variable.base
-            if methodname in @opts.blockFunctions
-              @csBlock node, depth, 0, 'command', wrappingParen, MOSTLY_BLOCK
-            else if methodname in @opts.valueFunctions
-              @csBlock node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE
+            namenodes = @functionNameNodes node
+            known = @lookupFunctionName namenodes
+            if known
+              if known.fn.value
+                color = known.fn.color or
+                  if known.fn.command then 'command' else 'value'
+                classes = if known.fn.command then ANY_DROP else MOSTLY_VALUE
+              else
+                color = known.fn.color or 'command'
+                classes = MOSTLY_BLOCK
             else
-              @csBlock node, depth, 0, 'command', wrappingParen, ANY_DROP
-              unrecognized = not(methodname in @opts.eitherFunctions)
+              color = 'command'
+              classes = ANY_DROP
+            @csBlock node, depth, 0, color, wrappingParen, classes
 
-            # If the object being operated on is an expression or deep, then
-            # Make things editable.
-            if node.variable.base?.nodeType() isnt 'Literal' or
-               node.variable.properties?.length > 1
-              unrecognized = true
-
-            # Deal with weird coffeescript rewrites, e.g., /// #{x} ///
-            # is rewritten to RegExp(...)
-            if methodname?.length > 1 and namenode?.locationData and
-                namenode.locationData.first_column is
-                namenode.locationData.last_column and
-                namenode.locationData.first_line is
-                namenode.locationData.last_line
-              unrecognized = false
-
-            if unrecognized
+            # Some function names (like /// RegExps ///) are never editable.
+            if @implicitName namenodes
+              # do nothing
+            else if not known
               # In the 'advanced' case where the methodname should be
               # editable, treat the whole (x.y.fn) as an expression to socket.
               @csSocketAndMark node.variable, depth + 1, 0, indentDepth
-            else if node.variable.properties?.length > 0
+            else if not known.dotted and node.variable.properties?.length > 0
               # In the 'beginner' case of a simple method call with a
               # simple base object variable, let the variable be socketed.
               @csSocketAndMark node.variable.base, depth + 1, 0, indentDepth
@@ -514,22 +472,23 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
 
           unless node.do
             for arg, index in node.args
-              precedence = 0
+              last = index is node.args.length - 1
               # special case: the last argument slot of a function
               # gathers anything inside it, without parens needed.
-              if index is node.args.length - 1 then precedence = -1
-              @csSocketAndMark arg, depth + 1, precedence, indentDepth
+              precedence = if last then -1 else 0
+              if last and arg.nodeType() is 'Code'
+                # Inline function definitions that appear as the last arg
+                # of a function call will be melded into the parent block.
+                @addCode arg, depth + 1, indentDepth
+              else
+                @csSocketAndMark arg, depth + 1, precedence, indentDepth
 
         # ### Code ###
         # Function definition. Color VALUE, sockets @params,
         # and indent @body.
         when 'Code'
           @csBlock node, depth, 0, 'value', wrappingParen, VALUE_ONLY
-
-          for param in node.params
-            @csSocketAndMark param, depth + 1, 0, indentDepth, FORBID_ALL
-
-          @mark node.body, depth + 1, 0, null, indentDepth
+          @addCode node, depth + 1, indentDepth
 
         # ### Assign ###
         # Color COMMAND, sockets @variable and @value.
@@ -537,7 +496,10 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
           @csBlock node, depth, 0, 'command', wrappingParen, MOSTLY_BLOCK
           @csSocketAndMark node.variable, depth + 1, 0, indentDepth, LVALUE
 
-          @csSocketAndMark node.value, depth + 1, 0, indentDepth
+          if node.value.nodeType() is 'Code'
+            @addCode node.value, depth + 1, indentDepth
+          else
+            @csSocketAndMark node.value, depth + 1, 0, indentDepth
 
         # ### For ###
         # Color CONTROL, options sockets @index, @source, @name, @from.
@@ -1003,19 +965,19 @@ define ['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], (
     return helper.DISCOURAGE
 
   CoffeeScriptParser.parens = (leading, trailing, node, context) ->
-    trailing = trailing.replace /\s*,\s*$/, ''
+    trailing trailing().replace /\s*,\s*$/, ''
     if context is null or context.type isnt 'socket' or
         context.precedence < node.precedence
       while true
-        if leading.match(/^\s*\(/)? and trailing.match(/\)\s*/)?
-          leading = leading.replace(/^\s*\(\s*/, '')
-          trailing = trailing.replace(/^\s*\)\s*/, '')
+        if leading().match(/^\s*\(/)? and trailing().match(/\)\s*/)?
+          leading leading().replace(/^\s*\(\s*/, '')
+          trailing trailing().replace(/\s*\)\s*$/, '')
         else
           break
     else
-      leading = '(' + leading
-      trailing = trailing + ')'
+      leading '(' + leading()
+      trailing trailing() + ')'
 
-    return [leading, trailing]
+    return
 
   return parser.wrapParser CoffeeScriptParser
