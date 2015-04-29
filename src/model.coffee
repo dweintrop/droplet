@@ -182,22 +182,24 @@ define ['droplet-helper'], (helper) ->
         ''
 
     setLeadingText: (value) ->
-      if @start.next.type is 'text'
-        if value.length is 0
-          @start.next.remove()
-        else
-          @start.next.value = value
-      else unless value.length is 0
-        @start.insert new TextToken value
+      if value?
+        if @start.next.type is 'text'
+          if value.length is 0
+            @start.next.remove()
+          else
+            @start.next.value = value
+        else unless value.length is 0
+          @start.insert new TextToken value
 
     setTrailingText: (value) ->
-      if @end.prev.type is 'text'
-        if value.length is 0
-          @end.prev.remove()
-        else
-          @end.prev.value = value
-      else unless value.length is 0
-        @end.insertBefore new TextToken value
+      if value?
+        if @end.prev.type is 'text'
+          if value.length is 0
+            @end.prev.remove()
+          else
+            @end.prev.value = value
+        else unless value.length is 0
+          @end.insertBefore new TextToken value
 
     # ## clone ##
     # Clone this container, with all the token inside,
@@ -749,7 +751,7 @@ define ['droplet-helper'], (helper) ->
     constructor: (@container) -> super; @type = 'socketEnd'
 
   exports.Socket = class Socket extends Container
-    constructor: (@precedence = 0, @handwritten = false, @classes = []) ->
+    constructor: (@precedence = 0, @handwritten = false, @classes = [], @dropdown = null) ->
       @start = new SocketStartToken this
       @end = new SocketEndToken this
 
@@ -757,9 +759,11 @@ define ['droplet-helper'], (helper) ->
 
       super
 
+    hasDropdown: -> @dropdown? and @isDroppable()
+
     isDroppable: -> @start.next is @end or @start.next.type is 'text'
 
-    _cloneEmpty: -> new Socket @precedence, @handwritten, @accepts
+    _cloneEmpty: -> new Socket @precedence, @handwritten, @classes, @dropdown
 
     _serialize_header: -> "<socket precedence=\"#{
         @precedence
@@ -767,7 +771,11 @@ define ['droplet-helper'], (helper) ->
         @handwritten
       }\" classes=\"#{
         @classes?.join?(' ') ? ''
-      }\">"
+      }\"#{
+        if @dropdown?
+          " dropdown=\"#{@dropdown?.join?(' ') ? ''}\""
+        else ''
+      }>"
 
     _serialize_footer: -> "</socket>"
 

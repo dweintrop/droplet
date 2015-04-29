@@ -113,8 +113,8 @@ define ['droplet-helper',
     'resize_palette': []    # after the palette is resized
 
     'redraw_main': []       # whenever we need to redraw the main canvas
-    'redraw_palette': []    # whenever we need to redraw the palette
-    'set_palette': []       # whenever we switch palette categories
+    'redraw_palette': []    # repaint the graphics of the palette
+    'rebuild_palette': []   # redraw the paltte, both graphics and elements
 
     'mousedown': []
     'mousemove': []
@@ -224,6 +224,9 @@ define ['droplet-helper',
         ctx: @mainCtx
         draw: @draw
 
+      # Set up event bindings before creating a view
+      @bindings = {}
+
       # Instantiate an ICE editor view
       @view = new view.View extend_ @standardViewSettings, respectEphemeral: true
       @dragView = new view.View extend_ @standardViewSettings, respectEphemeral: false
@@ -257,15 +260,11 @@ define ['droplet-helper',
         for handler in editorBindings[event.type]
           handler.call this, trackPoint, event, state
 
-        # Stop mousedown event propagation so that
+        # Stop mousedown event default behavior so that
         # we don't get bad selections
         if event.type is 'mousedown'
-          event.stopPropagation?()
           event.preventDefault?()
-
-          event.cancelBubble = true
           event.returnValue = false
-
           return false
 
       dispatchKeyEvent = (event) =>
@@ -297,8 +296,9 @@ define ['droplet-helper',
 
       @resizeBlockMode()
 
-      # Now that we've populated everything, immediately re@draw.
-      @redrawMain(); @redrawPalette()
+      # Now that we've populated everything, immediately redraw.
+      @redrawMain()
+      @rebuildPalette()
 
       # If we were given an unrecognized mode, flip into text mode
       unless @mode?
@@ -330,11 +330,12 @@ define ['droplet-helper',
 
     resizeBlockMode: ->
       @resizeTextMode()
-      @resizeGutter()
 
       @dropletElement.style.left = "#{@paletteElement.offsetWidth}px"
       @dropletElement.style.height = "#{@wrapperElement.offsetHeight}px"
       @dropletElement.style.width ="#{@wrapperElement.offsetWidth - @paletteWrapper.offsetWidth}px"
+
+      @resizeGutter()
 
       @mainCanvas.height = @dropletElement.offsetHeight
       @mainCanvas.width = @dropletElement.offsetWidth - @gutter.offsetWidth
@@ -385,8 +386,7 @@ define ['droplet-helper',
       @paletteCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
       @paletteHighlightCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
 
-
-      @redrawPalette()
+      @rebuildPalette()
 
 
   Editor::resize = ->
@@ -400,7 +400,7 @@ define ['droplet-helper',
   # ================================
 
   # ## Redraw
-  # There are two different redraw events, redraw_main and redraw_palette,
+  # There are two different redraw events, redraw_main and rebuild_palette,
   # for redrawing the main canvas and palette canvas, respectively.
   #
   # Redrawing simply involves issuing a call to the View.
@@ -560,9 +560,9 @@ define ['droplet-helper',
       @paletteCanvas.height
     )
 
-    for paletteBlock in @currentPaletteBlocks
+    for entry in @currentPaletteBlocks
       # Layout this block
-      paletteBlockView = @view.getViewNodeFor paletteBlock
+      paletteBlockView = @view.getViewNodeFor entry.block
       paletteBlockView.layout PALETTE_LEFT_MARGIN, lastBottomEdge
 
       # Render the block
@@ -573,6 +573,12 @@ define ['droplet-helper',
 
     for binding in editorBindings.redraw_palette
       binding.call this
+
+  Editor::rebuildPalette = ->
+    @redrawPalette()
+    for binding in editorBindings.rebuild_palette
+      binding.call this
+
 
   # MOUSE INTERACTION WRAPPERS
   # ================================
@@ -655,7 +661,10 @@ define ['droplet-helper',
     else return null
 
   hook 'mousedown', 10, ->
+    x = document.body.scrollLeft
+    y = document.body.scrollTop
     @dropletElement.focus()
+    window.scrollTo(x, y)
 
   # UNDO STACK SUPPORT
   # ================================
@@ -820,7 +829,10 @@ define ['droplet-helper',
 
   Editor::spliceOut = (node) ->
     leading = node.getLeadingText()
-    trailing = node.getTrailingText()
+    if node.start.next is node.end.prev
+      trailing = null
+    else
+      trailing = node.getTrailingText()
 
     [leading, trailing] = @mode.parens leading, trailing, node.getReader(), null
 
@@ -830,7 +842,10 @@ define ['droplet-helper',
 
   Editor::spliceIn = (node, location) ->
     leading = node.getLeadingText()
-    trailing = node.getTrailingText()
+    if node.start.next is node.end.prev
+      trailing = null
+    else
+      trailing = node.getTrailingText()
 
     container = location.container ? location.visParent()
 
@@ -889,10 +904,10 @@ define ['droplet-helper',
     @dragCanvas.width = 0
     @dragCanvas.height = 0
 
-    @highlightCanvas.width = @dropletElement.offsetWidth
+    @highlightCanvas.width = @dropletElement.offsetWidth - @gutter.offsetWidth
     @highlightCanvas.style.width = "#{@highlightCanvas.width}px"
 
-    @highlightCanvas.height = @dropletElement.offsetHeight
+    @highlightCanvas.height = @dropletElement.offsetHeight - @gutter.offsetWidth
     @highlightCanvas.style.height = "#{@highlightCanvas.height}px"
 
     @highlightCanvas.style.left = "#{@mainCanvas.offsetLeft}px"
@@ -1099,9 +1114,6 @@ define ['droplet-helper',
 
       rect = @wrapperElement.getBoundingClientRect()
 
-      console.log position.x - @wrapperElement.getBoundingClientRect().left,
-          position.y - @wrapperElement.getBoundingClientRect().top
-
       @dragCanvas.style.top = "#{position.y - rect.top}px"
       @dragCanvas.style.left = "#{position.x - rect.left}px"
 
@@ -1214,6 +1226,9 @@ define ['droplet-helper',
         if head.type is 'socketStart'
           @setTextInputFocus null
           @setTextInputFocus head.container
+
+      # Fire the event for sound
+      @fireEvent 'block-click'
 
       # Now that we've done that, we can annul stuff.
       @endDrag()
@@ -1446,6 +1461,9 @@ define ['droplet-helper',
         paletteHeaderRow = document.createElement 'div'
         paletteHeaderRow.className = 'droplet-palette-header-row'
         @paletteHeader.appendChild paletteHeaderRow
+        # hide the header if there is only one group, and it has no name.
+        if @paletteGroups.length is 1 and !paletteGroup.name
+          paletteHeaderRow.style.height = 0
 
       # Create the element itself
       paletteGroupHeader = document.createElement 'div'
@@ -1462,10 +1480,10 @@ define ['droplet-helper',
       for data in paletteGroup.blocks
         newBlock = @mode.parse(data.block).start.next.container
         newBlock.spliceOut(); newBlock.parent = null
-        newPaletteBlocks.push {
+        newPaletteBlocks.push
           block: newBlock
           title: data.title
-        }
+          id: data.id
 
       paletteGroupBlocks = newPaletteBlocks
 
@@ -1474,7 +1492,7 @@ define ['droplet-helper',
       updatePalette = =>
         # Record that we are the selected group now
         @currentPaletteGroup = paletteGroup.name
-        @currentPaletteBlocks = paletteGroupBlocks.map (x) -> x.block
+        @currentPaletteBlocks = paletteGroupBlocks
         @currentPaletteMetadata = paletteGroupBlocks
 
         # Unapply the "selected" style to the current palette group header
@@ -1491,12 +1509,11 @@ define ['droplet-helper',
             ' droplet-palette-group-header-selected'
 
         # Redraw the palette.
-        @redrawPalette()
+        @rebuildPalette()
+        @fireEvent 'selectpalette', [paletteGroup.name]
 
       clickHandler = =>
         do updatePalette
-        for event in editorBindings.set_palette
-          event.call this
 
       paletteGroupHeader.addEventListener 'click', clickHandler
       paletteGroupHeader.addEventListener 'touchstart', clickHandler
@@ -1506,6 +1523,7 @@ define ['droplet-helper',
         do updatePalette
 
     @resizePalette()
+    @resizePaletteHighlight()
 
   # The next thing we need to do with the palette
   # is let people pick things up from it.
@@ -1520,15 +1538,16 @@ define ['droplet-helper',
     if @scrollOffsets.palette.y < palettePoint.y < @scrollOffsets.palette.y + @paletteCanvas.height and
        @scrollOffsets.palette.x < palettePoint.x < @scrollOffsets.palette.x + @paletteCanvas.width
 
-      for block in @currentPaletteBlocks
-        hitTestResult = @hitTest palettePoint, block
+      for entry in @currentPaletteBlocks
+        hitTestResult = @hitTest palettePoint, entry.block
 
         if hitTestResult?
           @setTextInputFocus null
-          @clickedBlock = block
+          @clickedBlock = entry.block
           @clickedPoint = point
           @clickedBlockIsPaletteBlock = true
           state.consumedHitTest = true
+          @fireEvent 'pickblock', [entry.id]
           return
 
     @clickedBlockIsPaletteBlock = false
@@ -1555,7 +1574,7 @@ define ['droplet-helper',
     if @currentHighlightedPaletteBlock?
       @paletteHighlightPath.draw @paletteHighlightCtx
 
-  hook 'redraw_palette', 0, ->
+  hook 'rebuild_palette', 1, ->
     # Remove the existent blocks
     @paletteScrollerStuffing.innerHTML = ''
 
@@ -1755,10 +1774,12 @@ define ['droplet-helper',
     lines = @textFocus.stringify(@mode.empty).split '\n'
 
     startPosition = textFocusView.bounds[startRow].x + @view.opts.textPadding +
-      @mainCtx.measureText(last_(@textFocus.stringify(@mode.empty)[...@hiddenInput.selectionStart].split('\n'))).width
+      @mainCtx.measureText(last_(@textFocus.stringify(@mode.empty)[...@hiddenInput.selectionStart].split('\n'))).width +
+      (if @textFocus.hasDropdown() then helper.DROPDOWN_ARROW_WIDTH else 0)
 
     endPosition = textFocusView.bounds[endRow].x + @view.opts.textPadding +
-      @mainCtx.measureText(last_(@textFocus.stringify(@mode.empty)[...@hiddenInput.selectionEnd].split('\n'))).width
+      @mainCtx.measureText(last_(@textFocus.stringify(@mode.empty)[...@hiddenInput.selectionEnd].split('\n'))).width +
+      (if @textFocus.hasDropdown() then helper.DROPDOWN_ARROW_WIDTH else 0)
 
     # Now draw the highlight/typing cursor
     #
@@ -1776,11 +1797,12 @@ define ['droplet-helper',
       @cursorCtx.fillStyle = 'rgba(0, 0, 256, 0.3)'
 
       if startRow is endRow
-        @cursorCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding,
+        @cursorCtx.fillRect startPosition,
+          textFocusView.bounds[startRow].y + @view.opts.textPadding
           endPosition - startPosition, @view.opts.textHeight
 
       else
-        @cursorCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding,
+        @cursorCtx.fillRect startPosition, textFocusView.bounds[startRow].y + @view.opts.textPadding +
           textFocusView.bounds[startRow].right() - @view.opts.textPadding - startPosition, @view.opts.textHeight
 
         for i in [startRow + 1...endRow]
@@ -1804,6 +1826,8 @@ define ['droplet-helper',
   Editor::setTextInputFocus = (focus, selectionStart = null, selectionEnd = null) ->
     if focus?.id of @extraMarks
       delete @extraMarks[focus?.id]
+
+    @hideDropdown()
 
     # If there is already a focus, we
     # need to wrap some things up with it.
@@ -1946,7 +1970,7 @@ define ['droplet-helper',
     row = Math.max row, 0
     row = Math.min row, textFocusView.lineLength - 1
 
-    column = Math.max 0, Math.round((point.x - textFocusView.bounds[row].x - @view.opts.textPadding) / @mainCtx.measureText(' ').width)
+    column = Math.max 0, Math.round((point.x - textFocusView.bounds[row].x - @view.opts.textPadding - (if @textFocus.hasDropdown() then helper.DROPDOWN_ARROW_WIDTH else 0)) / @mainCtx.measureText(' ').width)
 
     lines = @textFocus.stringify(@mode.empty).split('\n')[..row]
     lines[lines.length - 1] = lines[lines.length - 1][...column]
@@ -1997,9 +2021,17 @@ define ['droplet-helper',
         @setTextInputFocus hitTestResult
         @redrawMain()
 
+        if hitTestResult.hasDropdown() and
+            mainPoint.x - @view.getViewNodeFor(hitTestResult).bounds[0].x < helper.DROPDOWN_ARROW_WIDTH
+          @showDropdown()
+
         @textInputSelecting = false
 
       else
+        if @textFocus.hasDropdown() and
+            mainPoint.x - @view.getViewNodeFor(hitTestResult).bounds[0].x < helper.DROPDOWN_ARROW_WIDTH
+          @showDropdown()
+
         @setTextInputAnchor mainPoint
         @redrawTextInput()
 
@@ -2016,6 +2048,46 @@ define ['droplet-helper',
       @hiddenInput.focus()
 
       state.consumedHitTest = true
+
+  # Create the dropdown DOM element at populate time.
+  hook 'populate', 0, ->
+    @dropdownElement = document.createElement 'div'
+    @dropdownElement.className = 'droplet-dropdown'
+    @wrapperElement.appendChild @dropdownElement
+
+  Editor::showDropdown = ->
+    if @textFocus.hasDropdown()
+      @dropdownElement.innerHTML = ''
+      @dropdownElement.style.display = 'inline-block'
+
+      # Closure the text focus; dropdown should work
+      # even after unfocused
+      textFocus = @textFocus
+      for el, i in @textFocus.dropdown() then do (el) =>
+        div = document.createElement 'div'
+        div.innerHTML = el.display
+        div.className = 'droplet-dropdown-item'
+
+        # Match fonts
+        div.style.fontFamily = @fontFamily
+        div.style.fontSize = @fontSize
+        div.style.paddingLeft = helper.DROPDOWN_ARROW_WIDTH
+
+        div.addEventListener 'mouseup', =>
+          @populateSocket @textFocus, el.text
+          @hiddenInput.value = el.text
+
+          @redrawMain()
+          @hideDropdown()
+        @dropdownElement.appendChild div
+
+      location = @view.getViewNodeFor(@textFocus).bounds[0]
+
+      @dropdownElement.style.top = location.y + @fontSize - @scrollOffsets.main.y
+      @dropdownElement.style.left = location.x - @scrollOffsets.main.x + @dropletElement.offsetLeft + @mainCanvas.offsetLeft
+
+  Editor::hideDropdown= ->
+    @dropdownElement.style.display = 'none'
 
   hook 'dblclick', 0, (point, event, state) ->
     # If someone else already took this click, return.
@@ -2145,10 +2217,10 @@ define ['droplet-helper',
   # Deal with resize for the lasso
   # select canvas
   Editor::resizeLassoCanvas = ->
-    @lassoSelectCanvas.width = @dropletElement.offsetWidth
+    @lassoSelectCanvas.width = @dropletElement.offsetWidth - @gutter.offsetWidth
     @lassoSelectCanvas.style.width = "#{@lassoSelectCanvas.width}px"
 
-    @lassoSelectCanvas.height = @dropletElement.offsetHeight
+    @lassoSelectCanvas.height = @dropletElement.offsetHeight - @gutter.offsetWidth
     @lassoSelectCanvas.style.height = "#{@lassoSelectCanvas.height}px"
 
     @lassoSelectCanvas.style.left = "#{@mainCanvas.offsetLeft}px"
@@ -2802,7 +2874,9 @@ define ['droplet-helper',
 
     @aceEditor.setTheme 'ace/theme/chrome'
     @aceEditor.setFontSize 15
-    @aceEditor.getSession().setMode 'ace/mode/coffee'
+    acemode = @options.mode
+    if acemode is 'coffeescript' then acemode = 'coffee'
+    @aceEditor.getSession().setMode 'ace/mode/' + acemode
     @aceEditor.getSession().setTabSize 2
 
     @aceEditor.on 'change', =>
@@ -3269,6 +3343,10 @@ define ['droplet-helper',
     @mainScroller.appendChild @mainScrollerStuffing
     @dropletElement.appendChild @mainScroller
 
+    # Prevent scrolling on wrapper element
+    @wrapperElement.addEventListener 'scroll', =>
+      @wrapperElement.scrollTop = @wrapperElement.scrollLeft = 0
+
     @mainScroller.addEventListener 'scroll', =>
       @scrollOffsets.main.y = @mainScroller.scrollTop
       @scrollOffsets.main.x = @mainScroller.scrollLeft
@@ -3301,6 +3379,7 @@ define ['droplet-helper',
       @paletteCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
       @paletteHighlightCtx.setTransform 1, 0, 0, 1, -@scrollOffsets.palette.x, -@scrollOffsets.palette.y
 
+      # redraw the bits of the palette
       @redrawPalette()
 
   Editor::resizeMainScroller = ->
@@ -3322,8 +3401,8 @@ define ['droplet-helper',
 
   hook 'redraw_palette', 0, ->
     bounds = new @draw.NoRectangle()
-    for block in @currentPaletteBlocks
-      bounds.unite @view.getViewNodeFor(block).getBounds()
+    for entry in @currentPaletteBlocks
+      bounds.unite @view.getViewNodeFor(entry.block).getBounds()
 
     # For now, we will comment out this line
     # due to bugs
@@ -3355,7 +3434,8 @@ define ['droplet-helper',
 
       @gutter.style.width = @aceEditor.renderer.$gutterLayer.gutterWidth + 'px'
 
-      @redrawMain(); @redrawPalette()
+      @redrawMain()
+      @rebuildPalette()
 
   Editor::setFontFamily = (fontFamily) ->
     @draw.setGlobalFontFamily fontFamily
@@ -3368,7 +3448,8 @@ define ['droplet-helper',
     @view.clearCache(); @dragView.clearCache()
     @gutter.style.fontFamily = fontFamily
 
-    @redrawMain(); @redrawPalette()
+    @redrawMain()
+    @rebuildPalette()
 
   Editor::setFontSize = (fontSize) ->
     @setFontSize_raw fontSize
@@ -3573,9 +3654,6 @@ define ['droplet-helper',
   # PUBLIC EVENT BINDING HOOKS
   # ===============================
 
-  hook 'populate', 0, ->
-    @bindings = {}
-
   Editor::on = (event, handler) ->
     @bindings[event] = handler
 
@@ -3674,7 +3752,7 @@ define ['droplet-helper',
 
   # PALETTE EVENT
   # =================================
-  hook 'set_palette', 0, ->
+  hook 'rebuild_palette', 0, ->
     @fireEvent 'changepalette', []
 
   # TOUCHSCREEN SUPPORT
@@ -3788,10 +3866,10 @@ define ['droplet-helper',
     @dropletElement.appendChild @cursorCanvas
 
   Editor::resizeCursorCanvas = ->
-    @cursorCanvas.width = @dropletElement.offsetWidth
+    @cursorCanvas.width = @dropletElement.offsetWidth - @gutter.offsetWidth
     @cursorCanvas.style.width = "#{@cursorCanvas.width}px"
 
-    @cursorCanvas.height = @dropletElement.offsetHeight
+    @cursorCanvas.height = @dropletElement.offsetHeight - @gutter.offsetWidth
     @cursorCanvas.style.height = "#{@cursorCanvas.height}px"
 
     @cursorCanvas.style.left = "#{@mainCanvas.offsetLeft}px"
@@ -4049,7 +4127,11 @@ define ['droplet-helper',
   hook 'keydown', 0, (event, state) ->
     if event.which in command_modifiers
       unless @textFocus?
+        x = document.body.scrollLeft
+        y = document.body.scrollTop
         @copyPasteInput.focus()
+        window.scrollTo(x, y)
+
         if @lassoSegment?
           @copyPasteInput.value = @lassoSegment.stringify(@mode.empty)
         @copyPasteInput.setSelectionRange 0, @copyPasteInput.value.length

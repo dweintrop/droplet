@@ -26,6 +26,18 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
   # and a given parser function.
   exports.Parser = class Parser
     constructor: (@text, @opts = {}) ->
+      convertFunction = (x) ->
+        if (typeof x is 'string') or x instanceof String
+          return {text: x, display: x}
+        else
+          return x
+      for key, val of @opts.functions
+        for index, options of val.dropdown then do (options) =>
+          @opts.functions[key].dropdown[index] = ->
+            if (typeof options is 'function')
+              return options().map convertFunction
+            else
+              return options.map convertFunction
       # Text can sometimes be subject to change
       # when doing error recovery, so keep a record of
       # the original text.
@@ -109,7 +121,8 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
     addSocket: (opts) ->
       socket = new model.Socket opts.precedence,
         false,
-        opts.classes
+        opts.classes,
+        opts.dropdown
 
       @addMarkup socket, opts.bounds, opts.depth
 
@@ -429,16 +442,14 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
     if context is null or context.type isnt 'socket' or
         context?.precedence < node.precedence
       while true
-        if leading.match(/^\s*\(/)? and trailing.match(/\)\s*/)?
-          leading = leading.replace(/^\s*\(\s*/, '')
-          trailing = trailing.replace(/^\s*\)\s*/, '')
+        if leading().match(/^\s*\(/)? and trailing().match(/\)\s*/)?
+          leading leading().replace(/^\s*\(\s*/, '')
+          trailing trailing().replace(/^\s*\)\s*/, '')
         else
           break
     else
-      leading = '(' + leading
-      trailing = trailing + ')'
-
-    return [leading, trailing]
+      leading '(' + leading()
+      trailing trailing() + ')'
 
   Parser.drop = (block, context, pred) ->
     if block.type is 'segment' and context.type is 'socket'
@@ -459,7 +470,28 @@ define ['droplet-helper', 'droplet-model'], (helper, model) ->
         opts ?= wrapAtRoot: true
         return @createParser(text)._parse opts
 
-      parens: (leading, trailing, node, context) -> CustomParser.parens leading, trailing, node, context
+      parens: (leading, trailing, node, context) ->
+        # leadingFn is always a getter/setter for leading
+        leadingFn = (value) ->
+          if value?
+            leading = value
+          return leading
+
+        # trailingFn may either get/set leading or trailing;
+        # will point to leading if leading is the only token,
+        # but will point to trailing otherwise.
+        if trailing?
+          trailingFn = (value) ->
+            if value?
+              trailing = value
+            return trailing
+        else
+          trailingFn = leadingFn
+
+        CustomParser.parens leadingFn, trailingFn, node, context
+
+        return [leading, trailing]
+
       drop: (block, context, pred) -> CustomParser.drop block, context, pred
 
   return exports
