@@ -1171,7 +1171,7 @@ define ['droplet-helper',
     clearTimeout @discourageDropTimeout; @discourageDropTimeout = null
 
   hook 'mouseup', 1, (point, event, state) ->
-    # We will consume this event iff we dropped it successfully
+    # We will consume this event if we dropped it successfully
     # in the root tree.
     if @draggingBlock? and @lastHighlight?
       if @inTree @draggingBlock
@@ -1228,7 +1228,7 @@ define ['droplet-helper',
           @setTextInputFocus head.container
 
       # Fire the event for sound
-      @fireEvent 'block-click'
+      @fireEvent 'block-drop', ['addition']
 
       # Now that we've done that, we can annul stuff.
       @endDrag()
@@ -1321,6 +1321,7 @@ define ['droplet-helper',
   # blocks without a highlight.
   hook 'mouseup', 0, (point, event, state) ->
     if @draggingBlock? and not @lastHighlight?
+
       # Before we put this block into our list of floating blocks,
       # we need to figure out where on the main canvas
       # we are going to render it.
@@ -1351,11 +1352,15 @@ define ['droplet-helper',
         if @draggingBlock is @lassoSegment
           @lassoSegment = null
 
+        @fireEvent 'block-drop', ['deletion']
+
         @endDrag()
         return
 
       else if renderPoint.x - @scrollOffsets.main.x < 0
         renderPoint.x = @scrollOffsets.main.x
+
+      @fireEvent 'block-drop', ['floating']
 
       # Add the undo operation associated
       # with creating this floating block
@@ -3967,6 +3972,7 @@ define ['droplet-helper',
 
   hook 'mouseup', 0.5, (point, event) ->
     if @draggingBlock?
+
       trackPoint = new @draw.Point(
         point.x + @draggingOffset.x,
         point.y + @draggingOffset.y
@@ -3975,6 +3981,7 @@ define ['droplet-helper',
 
       if @inTree(@draggingBlock) and @mainViewOrChildrenContains @draggingBlock, renderPoint
         @draggingBlock.ephemeral = false
+        
         @endDrag()
 
   # LINE NUMBER GUTTER CODE
