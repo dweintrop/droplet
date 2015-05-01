@@ -124,6 +124,13 @@ module.exports = (grunt) ->
             'dist/droplet-full.js'
           ]
 
+    copy: {
+      main: {
+        src: 'dist/droplet-full.js',
+        dest: '../pencilcode/content/lib/droplet.js'
+      }
+    }
+
     connect:
       testserver:
         options:
@@ -146,6 +153,7 @@ module.exports = (grunt) ->
   grunt.loadNpmTasks 'grunt-contrib-uglify'
   grunt.loadNpmTasks 'grunt-contrib-watch'
   grunt.loadNpmTasks 'grunt-browserify'
+  grunt.loadNpmTasks 'grunt-contrib-copy'
 
   grunt.registerTask 'default',
     ['build']
@@ -161,6 +169,10 @@ module.exports = (grunt) ->
 
   grunt.registerTask 'all',
     ['dist', 'buildtests', 'test']
+
+  grunt.registerTask 'devel-deploy',
+    ['dist', 'copy']    
+
 
   grunt.task.registerTask 'test',
     'Run unit tests, or just one test.',
