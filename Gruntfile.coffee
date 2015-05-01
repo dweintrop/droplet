@@ -43,7 +43,6 @@ module.exports = (grunt) ->
 
           {dest: 'test/js/parserTests.js', src: 'test/coffee/parserTests.coffee'}
           {dest: 'test/js/tests.js', src: 'test/coffee/tests.coffee'}
-
           {dest: 'example/example.js', src: 'example/example.coffee'}
           {dest: 'example/example-js.js', src: 'example/example-js.coffee'}
           {dest: 'example/test.js', src: 'example/test.coffee'}
@@ -126,6 +125,13 @@ module.exports = (grunt) ->
             'dist/droplet.js'
           ]
 
+    copy: {
+      main: {
+        src: 'dist/droplet-full.js',
+        dest: '../pencilcode/content/lib/droplet.js'
+      }
+    }
+
     connect:
       testserver:
         options:
@@ -154,6 +160,7 @@ module.exports = (grunt) ->
   grunt.loadNpmTasks 'grunt-mocha-spawn'
   grunt.loadNpmTasks 'grunt-contrib-uglify'
   grunt.loadNpmTasks 'grunt-contrib-watch'
+  grunt.loadNpmTasks 'grunt-contrib-copy'
   grunt.loadNpmTasks 'grunt-docco'
 
   grunt.registerTask 'default',
@@ -162,6 +169,9 @@ module.exports = (grunt) ->
     ['coffee']
   grunt.registerTask 'all',
     ['coffee', 'docco', 'requirejs', 'uglify', 'concat', 'cssmin', 'test']
+
+  grunt.registerTask 'devel-deploy',
+    ['coffee', 'requirejs', 'concat', 'copy']    
 
   grunt.registerTask 'notify-done', ->
     notify 'Compilation complete.'
