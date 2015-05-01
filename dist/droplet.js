@@ -20,18 +20,6 @@
         return this.replace(/\s+$/, '');
       };
     }
-    exports.extend = function(target) {
-      var sources;
-      sources = [].slice.call(arguments, 1);
-      sources.forEach(function(source) {
-        if (source) {
-          return Object.getOwnPropertyNames(source).forEach(function(prop) {
-            return Object.defineProperty(target, prop, Object.getOwnPropertyDescriptor(source, prop));
-          });
-        }
-      });
-      return target;
-    };
     exports.xmlPrettyPrint = function(str) {
       var result, xmlParser;
       result = '';
@@ -1027,16 +1015,16 @@
         return selfClone;
       };
 
-      Container.prototype.stringify = function(config) {
-        var emptyIndent, emptySocket, head, state, str;
-        emptySocket = config.empty || '';
-        emptyIndent = config.emptyIndent || '';
+      Container.prototype.stringify = function(emptyToken) {
+        var head, state, str;
+        if (emptyToken == null) {
+          emptyToken = '';
+        }
         str = '';
         head = this.start.next;
         state = {
           indent: '',
-          emptySocket: emptySocket,
-          emptyIndent: emptyIndent
+          emptyToken: emptyToken
         };
         while (head !== this.end) {
           str += head.stringify(state);
@@ -1637,7 +1625,7 @@
 
       SocketStartToken.prototype.stringify = function(state) {
         if (this.next === this.container.end || this.next.type === 'text' && this.next.value === '') {
-          return state.emptySocket;
+          return state.emptyToken;
         } else {
           return '';
         }
@@ -1727,7 +1715,7 @@
           state.indent = state.indent.slice(0, -this.container.prefix.length);
         }
         if (this.previousVisibleToken().previousVisibleToken() === this.container.start) {
-          return state.emptyIndent;
+          return state.emptyToken;
         } else {
           return '';
         }
@@ -3721,10 +3709,10 @@
 
     })();
     exports.Parser = Parser = (function() {
-      function Parser(text1, opts) {
+      function Parser(text1, opts1) {
         var convertFunction, fn, index, key, options, ref, ref1, val;
         this.text = text1;
-        this.opts = helper.extend({}, opts);
+        this.opts = opts1 != null ? opts1 : {};
         convertFunction = function(x) {
           if ((typeof x === 'string') || x instanceof String) {
             return {
@@ -4117,7 +4105,6 @@
       }
     };
     Parser.empty = '';
-    Parser.emptyIndent = '';
     exports.wrapParser = function(CustomParser) {
       var CustomParserFactory;
       return CustomParserFactory = (function(superClass) {
@@ -4126,7 +4113,6 @@
         function CustomParserFactory(opts1) {
           this.opts = opts1 != null ? opts1 : {};
           this.empty = CustomParser.empty;
-          this.emptyIndent = CustomParser.emptyIndent;
         }
 
         CustomParserFactory.prototype.createParser = function(text) {
@@ -4197,7 +4183,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('droplet-coffee',['droplet-helper', 'droplet-model', 'droplet-parser', 'coffee-script'], function(helper, model, parser, CoffeeScript) {
-    var ANY_DROP, BLOCK_ONLY, CATEGORIES, CoffeeScriptParser, FORBID_ALL, KNOWN_FUNCTIONS, LOGICAL_OPERATORS, LVALUE, MOSTLY_BLOCK, MOSTLY_VALUE, NO, NODE_CATEGORY, OPERATOR_PRECEDENCES, PROPERTY_ACCESS, STATEMENT_KEYWORDS, VALUE_ONLY, YES, addEmptyBackTickLineAfter, annotateCsNodes, backTickLine, exports, findUnmatchedLine, fixCoffeeScriptError, getClassesFor, spacestring;
+    var ANY_DROP, BLOCK_ONLY, CoffeeScriptParser, FORBID_ALL, KNOWN_FUNCTIONS, LVALUE, MOSTLY_BLOCK, MOSTLY_VALUE, NO, OPERATOR_PRECEDENCES, PROPERTY_ACCESS, STATEMENT_KEYWORDS, VALUE_ONLY, YES, addEmptyBackTickLineAfter, annotateCsNodes, backTickLine, exports, findUnmatchedLine, fixCoffeeScriptError, getClassesFor, spacestring;
     exports = {};
     ANY_DROP = ['any-drop'];
     BLOCK_ONLY = ['block-only'];
@@ -4270,79 +4256,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     STATEMENT_KEYWORDS = ['break', 'continue'];
-    CATEGORIES = {
-      functions: {
-        color: 'purple'
-      },
-      returns: {
-        color: 'yellow'
-      },
-      comments: {
-        color: 'gray'
-      },
-      arithmetic: {
-        color: 'green'
-      },
-      logic: {
-        color: 'cyan'
-      },
-      containers: {
-        color: 'teal'
-      },
-      assignments: {
-        color: 'blue'
-      },
-      loops: {
-        color: 'orange'
-      },
-      conditionals: {
-        color: 'orange'
-      },
-      value: {
-        color: 'green'
-      },
-      command: {
-        color: 'blue'
-      },
-      errors: {
-        color: '#f00'
-      }
-    };
-    NODE_CATEGORY = {
-      Parens: 'command',
-      Op: 'value',
-      Existence: 'logic',
-      In: 'logic',
-      Value: 'value',
-      Literal: 'value',
-      Call: 'command',
-      Code: 'functions',
-      Class: 'functions',
-      Assign: 'assignments',
-      For: 'loops',
-      While: 'loops',
-      If: 'conditionals',
-      Switch: 'conditionals',
-      Range: 'containers',
-      Arr: 'containers',
-      Obj: 'containers',
-      Return: 'returns'
-    };
-    LOGICAL_OPERATORS = {
-      '==': true,
-      '!=': true,
-      '===': true,
-      '!==': true,
-      '<': true,
-      '<=': true,
-      '>': true,
-      '>=': true,
-      'in': true,
-      'instanceof': true,
-      '||': true,
-      '&&': true,
-      '!': true
-    };
 
     /*
     OPERATOR_PRECEDENCES =
@@ -4425,11 +4338,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       function CoffeeScriptParser(text, opts) {
         var base, i, j, len, line, ref;
         this.text = text;
+        this.opts = opts != null ? opts : {};
         CoffeeScriptParser.__super__.constructor.apply(this, arguments);
         if ((base = this.opts).functions == null) {
           base.functions = KNOWN_FUNCTIONS;
         }
-        this.opts.categories = helper.extend({}, CATEGORIES, this.opts.categories);
         this.lines = this.text.split('\n');
         this.hasLineBeenMarked = {};
         ref = this.lines;
@@ -4589,7 +4502,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       };
 
       CoffeeScriptParser.prototype.mark = function(node, depth, precedence, wrappingParen, indentDepth) {
-        var arg, bounds, childName, classes, condition, errorSocket, expr, fakeBlock, firstBounds, index, infix, j, k, known, l, last, len, len1, len2, len3, len4, len5, len6, len7, len8, len9, line, lines, m, namenodes, o, object, p, property, q, r, ref, ref1, ref10, ref11, ref12, ref13, ref14, ref15, ref16, ref17, ref18, ref19, ref2, ref20, ref3, ref4, ref5, ref6, ref7, ref8, ref9, results, results1, results2, results3, results4, s, secondBounds, shouldBeOneLine, switchCase, t, textLine, trueIndentDepth, u;
+        var arg, bounds, childName, classes, color, condition, errorSocket, expr, fakeBlock, firstBounds, index, infix, j, k, known, l, last, len, len1, len2, len3, len4, len5, len6, len7, len8, len9, line, lines, m, namenodes, o, object, p, property, q, r, ref, ref1, ref10, ref11, ref12, ref13, ref14, ref15, ref16, ref17, ref18, ref19, ref2, ref20, ref3, ref4, ref5, ref6, ref7, ref8, ref9, results, results1, results2, results3, results4, s, secondBounds, shouldBeOneLine, switchCase, t, textLine, trueIndentDepth, u;
         switch (node.nodeType()) {
           case 'Block':
             if (node.expressions.length === 0) {
@@ -4633,7 +4546,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 return this.mark(node.body, depth + 1, 0, wrappingParen != null ? wrappingParen : node, indentDepth);
               } else {
                 if (node.body.unwrap() === node.body) {
-                  this.csBlock(node, depth, -2, null, MOSTLY_BLOCK);
+                  this.csBlock(node, depth, -2, 'command', null, MOSTLY_BLOCK);
                   ref3 = node.body.expressions;
                   results = [];
                   for (l = 0, len1 = ref3.length; l < len1; l++) {
@@ -4660,22 +4573,22 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             if (node.first && !node.second && ((ref4 = node.operator) === '+' || ref4 === '-') && ((ref5 = node.first) != null ? (ref6 = ref5.base) != null ? typeof ref6.nodeType === "function" ? ref6.nodeType() : void 0 : void 0 : void 0) === 'Literal') {
               return;
             }
-            this.csBlock(node, depth, OPERATOR_PRECEDENCES[node.operator], wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, OPERATOR_PRECEDENCES[node.operator], 'value', wrappingParen, VALUE_ONLY);
             this.csSocketAndMark(node.first, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth);
             if (node.second != null) {
               return this.csSocketAndMark(node.second, depth + 1, OPERATOR_PRECEDENCES[node.operator], indentDepth);
             }
             break;
           case 'Existence':
-            this.csBlock(node, depth, 100, wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
             return this.csSocketAndMark(node.expression, depth + 1, 101, indentDepth);
           case 'In':
-            this.csBlock(node, depth, 0, wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, 0, 'value', wrappingParen, VALUE_ONLY);
             this.csSocketAndMark(node.object, depth + 1, 0, indentDepth);
             return this.csSocketAndMark(node.array, depth + 1, 0, indentDepth);
           case 'Value':
             if ((node.properties != null) && node.properties.length > 0) {
-              this.csBlock(node, depth, 0, wrappingParen, MOSTLY_VALUE);
+              this.csBlock(node, depth, 0, 'value', wrappingParen, MOSTLY_VALUE);
               this.csSocketAndMark(node.base, depth + 1, 0, indentDepth);
               ref7 = node.properties;
               results1 = [];
@@ -4690,11 +4603,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 }
               }
               return results1;
-            } else if (node.base.nodeType() === 'Literal' && (node.base.value === '' || node.base.value === this.empty)) {
-              fakeBlock = this.csBlock(node.base, depth, 0, wrappingParen, ANY_DROP);
+            } else if (node.base.nodeType() === 'Literal' && node.base.value === '') {
+              fakeBlock = this.csBlock(node.base, depth, 0, 'value', wrappingParen, ANY_DROP);
               return fakeBlock.flagToRemove = true;
             } else if (node.base.nodeType() === 'Literal' && /^#/.test(node.base.value)) {
-              this.csBlock(node.base, depth, 0, wrappingParen, ANY_DROP);
+              this.csBlock(node.base, depth, 0, 'blank', wrappingParen, ANY_DROP);
               errorSocket = this.csSocket(node.base, depth + 1, -2);
               return errorSocket.flagToStrip = {
                 left: 2,
@@ -4706,7 +4619,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             break;
           case 'Literal':
             if (ref8 = node.value, indexOf.call(STATEMENT_KEYWORDS, ref8) >= 0) {
-              return this.csBlock(node, depth, 0, wrappingParen, BLOCK_ONLY);
+              return this.csBlock(node, depth, 0, 'return', wrappingParen, BLOCK_ONLY);
             } else {
               return 0;
             }
@@ -4722,14 +4635,17 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
               known = this.lookupFunctionName(namenodes);
               if (known) {
                 if (known.fn.value) {
+                  color = known.fn.color || (known.fn.command ? 'command' : 'value');
                   classes = known.fn.command ? ANY_DROP : MOSTLY_VALUE;
                 } else {
+                  color = known.fn.color || 'command';
                   classes = MOSTLY_BLOCK;
                 }
               } else {
+                color = 'command';
                 classes = ANY_DROP;
               }
-              this.csBlock(node, depth, 0, wrappingParen, classes);
+              this.csBlock(node, depth, 0, color, wrappingParen, classes);
               if (this.implicitName(namenodes)) {
 
               } else if (!known) {
@@ -4738,7 +4654,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 this.csSocketAndMark(node.variable.base, depth + 1, 0, indentDepth);
               }
             } else {
-              this.csBlock(node, depth, 0, wrappingParen, ANY_DROP);
+              this.csBlock(node, depth, 0, 'command', wrappingParen, ANY_DROP);
             }
             if (!node["do"]) {
               ref10 = node.args;
@@ -4757,10 +4673,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
             break;
           case 'Code':
-            this.csBlock(node, depth, 0, wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, 0, 'value', wrappingParen, VALUE_ONLY);
             return this.addCode(node, depth + 1, indentDepth);
           case 'Assign':
-            this.csBlock(node, depth, 0, wrappingParen, MOSTLY_BLOCK);
+            this.csBlock(node, depth, 0, 'command', wrappingParen, MOSTLY_BLOCK);
             this.csSocketAndMark(node.variable, depth + 1, 0, indentDepth, LVALUE);
             if (node.value.nodeType() === 'Code') {
               return this.addCode(node.value, depth + 1, indentDepth);
@@ -4769,7 +4685,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
             break;
           case 'For':
-            this.csBlock(node, depth, -3, wrappingParen, MOSTLY_BLOCK);
+            this.csBlock(node, depth, -3, 'control', wrappingParen, MOSTLY_BLOCK);
             ref13 = ['source', 'from', 'guard', 'step'];
             for (p = 0, len4 = ref13.length; p < len4; p++) {
               childName = ref13[p];
@@ -4786,11 +4702,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
             return this.mark(node.body, depth + 1, 0, null, indentDepth);
           case 'Range':
-            this.csBlock(node, depth, 100, wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, 100, 'value', wrappingParen, VALUE_ONLY);
             this.csSocketAndMark(node.from, depth, 0, indentDepth);
             return this.csSocketAndMark(node.to, depth, 0, indentDepth);
           case 'If':
-            this.csBlock(node, depth, 0, wrappingParen, MOSTLY_BLOCK);
+            this.csBlock(node, depth, 0, 'control', wrappingParen, MOSTLY_BLOCK);
 
             /*
             bounds = @getBounds node
@@ -4809,7 +4725,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
             break;
           case 'Arr':
-            this.csBlock(node, depth, 100, wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, 100, 'purple', wrappingParen, VALUE_ONLY);
             if (node.objects.length > 0) {
               this.csIndentAndMark(indentDepth, node.objects, depth + 1);
             }
@@ -4818,7 +4734,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             for (r = 0, len6 = ref15.length; r < len6; r++) {
               object = ref15[r];
               if (object.nodeType() === 'Value' && object.base.nodeType() === 'Literal' && ((ref16 = (ref17 = object.properties) != null ? ref17.length : void 0) === 0 || ref16 === (void 0))) {
-                results3.push(this.csBlock(object, depth + 2, 100, null, VALUE_ONLY));
+                results3.push(this.csBlock(object, depth + 2, 100, 'return', null, VALUE_ONLY));
               } else {
                 results3.push(void 0);
               }
@@ -4826,20 +4742,20 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             return results3;
             break;
           case 'Return':
-            this.csBlock(node, depth, 0, wrappingParen, BLOCK_ONLY);
+            this.csBlock(node, depth, 0, 'return', wrappingParen, BLOCK_ONLY);
             if (node.expression != null) {
               return this.csSocketAndMark(node.expression, depth + 1, 0, indentDepth);
             }
             break;
           case 'While':
-            this.csBlock(node, depth, -3, wrappingParen, MOSTLY_BLOCK);
+            this.csBlock(node, depth, -3, 'control', wrappingParen, MOSTLY_BLOCK);
             this.csSocketAndMark(node.rawCondition, depth + 1, 0, indentDepth);
             if (node.guard != null) {
               this.csSocketAndMark(node.guard, depth + 1, 0, indentDepth);
             }
             return this.mark(node.body, depth + 1, 0, null, indentDepth);
           case 'Switch':
-            this.csBlock(node, depth, 0, wrappingParen, MOSTLY_BLOCK);
+            this.csBlock(node, depth, 0, 'control', wrappingParen, MOSTLY_BLOCK);
             if (node.subject != null) {
               this.csSocketAndMark(node.subject, depth + 1, 0, indentDepth);
             }
@@ -4862,7 +4778,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
             break;
           case 'Class':
-            this.csBlock(node, depth, 0, wrappingParen, ANY_DROP);
+            this.csBlock(node, depth, 0, 'control', wrappingParen, ANY_DROP);
             if (node.variable != null) {
               this.csSocketAndMark(node.variable, depth + 1, 0, indentDepth, FORBID_ALL);
             }
@@ -4874,7 +4790,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             }
             break;
           case 'Obj':
-            this.csBlock(node, depth, 0, wrappingParen, VALUE_ONLY);
+            this.csBlock(node, depth, 0, 'purple', wrappingParen, VALUE_ONLY);
             ref20 = node.properties;
             results4 = [];
             for (u = 0, len9 = ref20.length; u < len9; u++) {
@@ -4977,45 +4893,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return bounds;
       };
 
-      CoffeeScriptParser.prototype.getColor = function(node) {
-        var category, known, namenodes, ref, ref1;
-        category = NODE_CATEGORY[node.nodeType()] || 'command';
-        switch (node.nodeType()) {
-          case 'Op':
-            if (LOGICAL_OPERATORS[node.operator]) {
-              category = 'logic';
-            } else {
-              category = 'arithmetic';
-            }
-            break;
-          case 'Call':
-            if (node.variable != null) {
-              namenodes = this.functionNameNodes(node);
-              known = this.lookupFunctionName(namenodes);
-              if (known) {
-                if (known.fn.value) {
-                  category = known.fn.color || (known.fn.command ? 'command' : 'value');
-                } else {
-                  category = known.fn.color || 'command';
-                }
-              }
-            }
-            break;
-          case 'Assign':
-            if (node.value.nodeType() === 'Code') {
-              category = 'functions';
-            }
-            break;
-          case 'Literal':
-            if (/^#/.test(node.value)) {
-              category = 'error';
-            } else if (ref = node.value, indexOf.call(STATEMENT_KEYWORDS, ref) >= 0) {
-              category = 'returns';
-            }
-        }
-        return ((ref1 = this.opts.categories[category]) != null ? ref1.color : void 0) || category;
-      };
-
       CoffeeScriptParser.prototype.flagLineAsMarked = function(line) {
         var results;
         this.hasLineBeenMarked[line] = true;
@@ -5033,7 +4910,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return container;
       };
 
-      CoffeeScriptParser.prototype.csBlock = function(node, depth, precedence, wrappingParen, classes) {
+      CoffeeScriptParser.prototype.csBlock = function(node, depth, precedence, color, wrappingParen, classes) {
         if (classes == null) {
           classes = [];
         }
@@ -5041,7 +4918,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           bounds: this.getBounds(wrappingParen != null ? wrappingParen : node),
           depth: depth,
           precedence: precedence,
-          color: this.getColor(node),
+          color: color,
           classes: getClassesFor(node).concat(classes),
           parenWrapped: wrappingParen != null
         });
@@ -5114,7 +4991,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           bounds: surroundingBounds,
           depth: depth + 1,
           precedence: -2,
-          color: this.opts.categories['command'].color,
+          color: 'command',
           socketLevel: ANY_DROP,
           classes: ['semicolon']
         });
@@ -5203,7 +5080,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return lines.splice(n + 1, 0, leading[0] + '  ``');
     };
     CoffeeScriptParser.empty = "``";
-    CoffeeScriptParser.emptyIndent = "``";
     CoffeeScriptParser.drop = function(block, context, pred) {
       var ref, ref1;
       if (context.type === 'socket') {
@@ -7798,7 +7674,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     indexOf = [].indexOf || function(item) { for (var i = 0, l = this.length; i < l; i++) { if (i in this && this[i] === item) return i; } return -1; };
 
   define('droplet-javascript',['droplet-helper', 'droplet-model', 'droplet-parser', 'acorn'], function(helper, model, parser, acorn) {
-    var CATEGORIES, CLASS_EXCEPTIONS, DEFAULT_INDENT_DEPTH, JavaScriptParser, KNOWN_FUNCTIONS, LOGICAL_OPERATORS, NEVER_PAREN, NODE_CATEGORIES, OPERATOR_PRECEDENCES, STATEMENT_NODE_TYPES, exports;
+    var CLASS_EXCEPTIONS, COLORS, DEFAULT_INDENT_DEPTH, JavaScriptParser, KNOWN_FUNCTIONS, NEVER_PAREN, OPERATOR_PRECEDENCES, STATEMENT_NODE_TYPES, exports;
     exports = {};
     STATEMENT_NODE_TYPES = ['ExpressionStatement', 'ReturnStatement', 'BreakStatement', 'ThrowStatement'];
     NEVER_PAREN = 100;
@@ -7864,86 +7740,32 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         value: true
       }
     };
-    CATEGORIES = {
-      functions: {
-        color: 'purple'
-      },
-      returns: {
-        color: 'yellow'
-      },
-      comments: {
-        color: 'gray'
-      },
-      arithmetic: {
-        color: 'green'
-      },
-      logic: {
-        color: 'cyan'
-      },
-      containers: {
-        color: 'teal'
-      },
-      assignments: {
-        color: 'blue'
-      },
-      loops: {
-        color: 'orange'
-      },
-      conditionals: {
-        color: 'orange'
-      },
-      value: {
-        color: 'green'
-      },
-      command: {
-        color: 'blue'
-      },
-      errors: {
-        color: '#f00'
-      }
-    };
-    LOGICAL_OPERATORS = {
-      '==': true,
-      '!=': true,
-      '===': true,
-      '!==': true,
-      '<': true,
-      '<=': true,
-      '>': true,
-      '>=': true,
-      'in': true,
-      'instanceof': true,
-      '||': true,
-      '&&': true,
-      '!': true
-    };
-    NODE_CATEGORIES = {
-      'BinaryExpression': 'arithmetic',
-      'UnaryExpression': 'arithmetic',
-      'ConditionalExpression': 'arithmetic',
-      'LogicalExpression': 'logic',
-      'FunctionExpression': 'functions',
-      'FunctionDeclaration': 'functions',
-      'AssignmentExpression': 'assignments',
-      'UpdateExpression': 'assignments',
-      'VariableDeclaration': 'assignments',
-      'ReturnStatement': 'returns',
-      'IfStatement': 'conditionals',
-      'SwitchStatement': 'conditionals',
-      'ForStatement': 'loops',
-      'ForInStatement': 'loops',
-      'WhileStatement': 'loops',
-      'DoWhileStatement': 'loops',
-      'NewExpression': 'containers',
-      'ObjectExpression': 'containers',
-      'ArrayExpression': 'containers',
-      'MemberExpression': 'containers',
-      'BreakStatement': 'returns',
-      'ThrowStatement': 'returns',
-      'TryStatement': 'returns',
+    COLORS = {
+      'BinaryExpression': 'value',
+      'UnaryExpression': 'value',
+      'FunctionExpression': 'value',
+      'FunctionDeclaration': 'purple',
+      'AssignmentExpression': 'command',
       'CallExpression': 'command',
+      'ReturnStatement': 'return',
+      'MemberExpression': 'value',
+      'IfStatement': 'control',
+      'ForStatement': 'control',
+      'ForInStatement': 'control',
+      'UpdateExpression': 'command',
+      'VariableDeclaration': 'command',
+      'LogicalExpression': 'value',
+      'WhileStatement': 'control',
+      'DoWhileStatement': 'control',
+      'ObjectExpression': 'value',
+      'SwitchStatement': 'control',
+      'BreakStatement': 'return',
+      'NewExpression': 'command',
+      'ThrowStatement': 'return',
+      'TryStatement': 'control',
+      'ArrayExpression': 'value',
       'SequenceExpression': 'command',
-      'Identifier': 'value'
+      'ConditionalExpression': 'value'
     };
     OPERATOR_PRECEDENCES = {
       '*': 5,
@@ -7985,11 +7807,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       function JavaScriptParser(text1, opts) {
         var base;
         this.text = text1;
+        this.opts = opts != null ? opts : {};
         JavaScriptParser.__super__.constructor.apply(this, arguments);
         if ((base = this.opts).functions == null) {
           base.functions = KNOWN_FUNCTIONS;
         }
-        this.opts.categories = helper.extend({}, CATEGORIES, this.opts.categories);
         this.lines = this.text.split('\n');
       }
 
@@ -8005,7 +7827,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
       JavaScriptParser.prototype.fullFunctionNameArray = function(node) {
         var obj, props;
-        if (node.type !== 'CallExpression' && node.type !== 'NewExpression') {
+        if (node.type !== 'CallExpression') {
           throw new Error;
         }
         obj = node.callee;
@@ -8104,43 +7926,25 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
       };
 
-      JavaScriptParser.prototype.lookupCategory = function(node) {
-        var category;
-        switch (node.type) {
-          case 'BinaryExpression':
-          case 'UnaryExpression':
-            if (LOGICAL_OPERATORS.hasOwnProperty(node.operator)) {
-              category = 'logic';
-            } else {
-              category = 'arithmetic';
-            }
-            break;
-          default:
-            category = NODE_CATEGORIES[node.type];
-        }
-        return this.opts.categories[category];
-      };
-
       JavaScriptParser.prototype.getColor = function(node) {
-        var category, known;
+        var known;
         switch (node.type) {
           case 'ExpressionStatement':
             return this.getColor(node.expression);
           case 'CallExpression':
             known = this.lookupFunctionName(node);
             if (!known) {
-              return this.opts.categories.command.color;
+              return 'purple';
             } else if (known.fn.color) {
               return known.fn.color;
             } else if (known.fn.value && !known.fn.command) {
-              return this.opts.categories.value.color;
+              return 'value';
             } else {
-              return this.opts.categories.command.color;
+              return 'command';
             }
             break;
           default:
-            category = this.lookupCategory(node);
-            return (category != null ? category.color : void 0) || 'command';
+            return COLORS[node.type];
         }
       };
 
@@ -8227,7 +8031,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       };
 
       JavaScriptParser.prototype.mark = function(indentDepth, node, depth, bounds) {
-        var argument, block, declaration, element, expression, i, j, k, known, l, len, len1, len10, len2, len3, len4, len5, len6, len7, len8, len9, m, n, o, p, param, prefix, property, q, r, ref, ref1, ref10, ref11, ref12, ref2, ref3, ref4, ref5, ref6, ref7, ref8, ref9, results, results1, results10, results2, results3, results4, results5, results6, results7, results8, results9, s, statement, switchCase, t;
+        var argument, block, declaration, element, expression, i, j, k, known, l, len, len1, len10, len2, len3, len4, len5, len6, len7, len8, len9, m, n, o, p, param, prefix, property, q, r, ref, ref1, ref10, ref11, ref2, ref3, ref4, ref5, ref6, ref7, ref8, ref9, results, results1, results10, results2, results3, results4, results5, results6, results7, results8, results9, s, statement, switchCase, t;
         switch (node.type) {
           case 'Program':
             ref = node.body;
@@ -8369,7 +8173,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             results5 = [];
             for (i = o = 0, len5 = ref5.length; o < len5; i = ++o) {
               argument = ref5[i];
-              results5.push(this.jsSocketAndMark(indentDepth, argument, depth + 1, NEVER_PAREN, null, null, known != null ? (ref6 = known.fn) != null ? (ref7 = ref6.dropdown) != null ? ref7[i] : void 0 : void 0 : void 0));
+              results5.push(this.jsSocketAndMark(indentDepth, argument, depth + 1, NEVER_PAREN, known != null ? (ref6 = known.dropdown) != null ? ref6[i] : void 0 : void 0));
             }
             return results5;
             break;
@@ -8382,10 +8186,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             return this.jsSocketAndMark(indentDepth, node.argument, depth + 1);
           case 'VariableDeclaration':
             this.jsBlock(node, depth, bounds);
-            ref8 = node.declarations;
+            ref7 = node.declarations;
             results6 = [];
-            for (p = 0, len6 = ref8.length; p < len6; p++) {
-              declaration = ref8[p];
+            for (p = 0, len6 = ref7.length; p < len6; p++) {
+              declaration = ref7[p];
               results6.push(this.mark(indentDepth, declaration, depth + 1));
             }
             return results6;
@@ -8407,10 +8211,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             return this.jsSocketAndMark(indentDepth, node.test, depth + 1);
           case 'ObjectExpression':
             this.jsBlock(node, depth, bounds);
-            ref9 = node.properties;
+            ref8 = node.properties;
             results7 = [];
-            for (q = 0, len7 = ref9.length; q < len7; q++) {
-              property = ref9[q];
+            for (q = 0, len7 = ref8.length; q < len7; q++) {
+              property = ref8[q];
               this.jsSocketAndMark(indentDepth, property.key, depth + 1);
               results7.push(this.jsSocketAndMark(indentDepth, property.value, depth + 1));
             }
@@ -8419,10 +8223,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           case 'SwitchStatement':
             this.jsBlock(node, depth, bounds);
             this.jsSocketAndMark(indentDepth, node.discriminant, depth + 1);
-            ref10 = node.cases;
+            ref9 = node.cases;
             results8 = [];
-            for (r = 0, len8 = ref10.length; r < len8; r++) {
-              switchCase = ref10[r];
+            for (r = 0, len8 = ref9.length; r < len8; r++) {
+              switchCase = ref9[r];
               results8.push(this.mark(indentDepth, switchCase, depth + 1, null));
             }
             return results8;
@@ -8440,10 +8244,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 depth: depth + 1,
                 prefix: prefix
               });
-              ref11 = node.consequent;
+              ref10 = node.consequent;
               results9 = [];
-              for (s = 0, len9 = ref11.length; s < len9; s++) {
-                statement = ref11[s];
+              for (s = 0, len9 = ref10.length; s < len9; s++) {
+                statement = ref10[s];
                 results9.push(this.mark(indentDepth, statement, depth + 2));
               }
               return results9;
@@ -8467,10 +8271,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             break;
           case 'ArrayExpression':
             this.jsBlock(node, depth, bounds);
-            ref12 = node.elements;
+            ref11 = node.elements;
             results10 = [];
-            for (t = 0, len10 = ref12.length; t < len10; t++) {
-              element = ref12[t];
+            for (t = 0, len10 = ref11.length; t < len10; t++) {
+              element = ref11[t];
               if (element != null) {
                 results10.push(this.jsSocketAndMark(indentDepth, element, depth + 1, null));
               } else {
@@ -8497,15 +8301,14 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         });
       };
 
-      JavaScriptParser.prototype.jsSocketAndMark = function(indentDepth, node, depth, precedence, bounds, classes, dropdown) {
+      JavaScriptParser.prototype.jsSocketAndMark = function(indentDepth, node, depth, precedence, bounds, classes) {
         if (node.type !== 'BlockStatement') {
           this.addSocket({
             bounds: bounds != null ? bounds : this.getBounds(node),
             depth: depth,
             precedence: precedence,
             classes: classes != null ? classes : [],
-            accepts: this.getAcceptsRule(node),
-            dropdown: dropdown
+            accepts: this.getAcceptsRule(node)
           });
         }
         return this.mark(indentDepth, node, depth + 1, bounds);
@@ -8569,7 +8372,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return helper.DISCOURAGE;
     };
     JavaScriptParser.empty = "__";
-    JavaScriptParser.emptyIndent = "";
     return parser.wrapParser(JavaScriptParser);
   });
 
@@ -8703,12 +8505,10 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     exports.Editor = Editor = (function() {
       function Editor(wrapperElement, options) {
-        var binding, boundListeners, dispatchKeyEvent, dispatchMouseEvent, elements, eventName, fn1, j, len, ref1, ref2, ref3, ref4;
+        var binding, boundListeners, dispatchKeyEvent, dispatchMouseEvent, elements, eventName, fn1, j, len, ref1, ref2;
         this.wrapperElement = wrapperElement;
         this.options = options;
         this.paletteGroups = this.options.palette;
-        this.showPaletteInTextMode = (ref1 = this.options.showPaletteInTextMode) != null ? ref1 : false;
-        this.paletteEnabled = (ref2 = this.options.enablePaletteAtStart) != null ? ref2 : true;
         this.options.mode = this.options.mode.replace(/$\/ace\/mode\//, '');
         if (this.options.mode in modes) {
           this.mode = new modes[this.options.mode](this.options.modeOptions);
@@ -8768,9 +8568,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           respectEphemeral: false
         }));
         boundListeners = [];
-        ref3 = editorBindings.populate;
-        for (j = 0, len = ref3.length; j < len; j++) {
-          binding = ref3[j];
+        ref1 = editorBindings.populate;
+        for (j = 0, len = ref1.length; j < len; j++) {
+          binding = ref1[j];
           binding.call(this);
         }
         window.addEventListener('resize', (function(_this) {
@@ -8780,15 +8580,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         })(this));
         dispatchMouseEvent = (function(_this) {
           return function(event) {
-            var handler, k, len1, ref4, state, trackPoint;
+            var handler, k, len1, ref2, state, trackPoint;
             if (event.type !== 'mousemove' && event.which !== 1) {
               return;
             }
             trackPoint = new _this.draw.Point(event.clientX, event.clientY);
             state = {};
-            ref4 = editorBindings[event.type];
-            for (k = 0, len1 = ref4.length; k < len1; k++) {
-              handler = ref4[k];
+            ref2 = editorBindings[event.type];
+            for (k = 0, len1 = ref2.length; k < len1; k++) {
+              handler = ref2[k];
               handler.call(_this, trackPoint, event, state);
             }
             if (event.type === 'mousedown') {
@@ -8802,18 +8602,18 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         })(this);
         dispatchKeyEvent = (function(_this) {
           return function(event) {
-            var handler, k, len1, ref4, results, state;
+            var handler, k, len1, ref2, results, state;
             state = {};
-            ref4 = editorBindings[event.type];
+            ref2 = editorBindings[event.type];
             results = [];
-            for (k = 0, len1 = ref4.length; k < len1; k++) {
-              handler = ref4[k];
+            for (k = 0, len1 = ref2.length; k < len1; k++) {
+              handler = ref2[k];
               results.push(handler.call(_this, event, state));
             }
             return results;
           };
         })(this);
-        ref4 = {
+        ref2 = {
           keydown: [this.dropletElement, this.paletteElement],
           keyup: [this.dropletElement, this.paletteElement],
           mousedown: [this.dropletElement, this.paletteElement, this.dragCover],
@@ -8836,8 +8636,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             return results;
           };
         })(this);
-        for (eventName in ref4) {
-          elements = ref4[eventName];
+        for (eventName in ref2) {
+          elements = ref2[eventName];
           fn1(eventName, elements);
         }
         this.tree = new model.Segment();
@@ -8875,14 +8675,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
       Editor.prototype.resizeBlockMode = function() {
         this.resizeTextMode();
+        this.dropletElement.style.left = this.paletteElement.offsetWidth + "px";
         this.dropletElement.style.height = this.wrapperElement.offsetHeight + "px";
-        if (this.paletteEnabled) {
-          this.dropletElement.style.left = this.paletteElement.offsetWidth + "px";
-          this.dropletElement.style.width = (this.wrapperElement.offsetWidth - this.paletteWrapper.offsetWidth) + "px";
-        } else {
-          this.dropletElement.style.left = "0px";
-          this.dropletElement.style.width = this.wrapperElement.offsetWidth + "px";
-        }
+        this.dropletElement.style.width = (this.wrapperElement.offsetWidth - this.paletteWrapper.offsetWidth) + "px";
         this.resizeGutter();
         this.mainCanvas.height = this.dropletElement.offsetHeight;
         this.mainCanvas.width = this.dropletElement.offsetWidth - this.gutter.offsetWidth;
@@ -9127,25 +8922,29 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       gbr = this.paletteCanvas.getBoundingClientRect();
       return new this.draw.Point(point.x - gbr.left + this.scrollOffsets.palette.x, point.y - gbr.top + this.scrollOffsets.palette.y);
     };
-    Editor.prototype.trackerPointIsInElement = function(point, element) {
+    Editor.prototype.trackerPointIsInMain = function(point) {
       var gbr;
-      if (element.offsetParent == null) {
+      if (this.mainCanvas.offsetParent == null) {
         return false;
       }
-      gbr = element.getBoundingClientRect();
+      gbr = this.mainCanvas.getBoundingClientRect();
       return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
     };
-    Editor.prototype.trackerPointIsInMain = function(point) {
-      return this.trackerPointIsInElement(point, this.mainCanvas);
-    };
     Editor.prototype.trackerPointIsInMainScroller = function(point) {
-      return this.trackerPointIsInElement(point, this.mainScroller);
+      var gbr;
+      if (this.mainScroller.offsetParent == null) {
+        return false;
+      }
+      gbr = this.mainScroller.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
     };
     Editor.prototype.trackerPointIsInPalette = function(point) {
-      return this.trackerPointIsInElement(point, this.paletteCanvas);
-    };
-    Editor.prototype.trackerPointIsInAce = function(point) {
-      return this.trackerPointIsInElement(point, this.aceElement);
+      var gbr;
+      if (this.paletteCanvas.offsetParent == null) {
+        return false;
+      }
+      gbr = this.paletteCanvas.getBoundingClientRect();
+      return point.x >= gbr.left && point.x < gbr.right && point.y >= gbr.top && point.y < gbr.bottom;
     };
     Editor.prototype.hitTest = function(point, block) {
       var head, seek;
@@ -9315,29 +9114,31 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })(UndoOperation);
     Editor.prototype.spliceOut = function(node) {
-      this.prepareNode(node, null);
-      return node.spliceOut();
-    };
-    Editor.prototype.spliceIn = function(node, location) {
-      var container, ref1;
-      container = (ref1 = location.container) != null ? ref1 : location.visParent();
-      if (container.type === 'block') {
-        container = container.visParent();
-      }
-      this.prepareNode(node, container);
-      return node.spliceIn(location);
-    };
-    Editor.prototype.prepareNode = function(node, context) {
-      var leading, ref1, ref2, trailing;
+      var leading, ref1, trailing;
       leading = node.getLeadingText();
       if (node.start.next === node.end.prev) {
         trailing = null;
       } else {
         trailing = node.getTrailingText();
       }
-      ref2 = this.mode.parens(leading, trailing, node.getReader(), (ref1 = context != null ? typeof context.getReader === "function" ? context.getReader() : void 0 : void 0) != null ? ref1 : null), leading = ref2[0], trailing = ref2[1];
+      ref1 = this.mode.parens(leading, trailing, node.getReader(), null), leading = ref1[0], trailing = ref1[1];
       node.setLeadingText(leading);
-      return node.setTrailingText(trailing);
+      node.setTrailingText(trailing);
+      return node.spliceOut();
+    };
+    Editor.prototype.spliceIn = function(node, location) {
+      var container, leading, ref1, ref2, ref3, ref4, trailing;
+      leading = node.getLeadingText();
+      if (node.start.next === node.end.prev) {
+        trailing = null;
+      } else {
+        trailing = node.getTrailingText();
+      }
+      container = (ref1 = location.container) != null ? ref1 : location.visParent();
+      ref4 = this.mode.parens(leading, trailing, node.getReader(), (ref2 = (ref3 = (container.type === 'block' ? container.visParent() : container)) != null ? typeof ref3.getReader === "function" ? ref3.getReader() : void 0 : void 0) != null ? ref2 : null), leading = ref4[0], trailing = ref4[1];
+      node.setLeadingText(leading);
+      node.setTrailingText(trailing);
+      return node.spliceIn(location);
     };
     hook('populate', 0, function() {
       this.clickedPoint = null;
@@ -9504,18 +9305,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       }
     };
     hook('mousemove', 0, function(point, event, state) {
-      var best, head, mainPoint, min, palettePoint, pos, position, rect, ref1, ref2, ref3, testPoints;
+      var best, head, mainPoint, min, palettePoint, position, rect, ref1, ref2, ref3, testPoints;
       if (this.draggingBlock != null) {
         position = new this.draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
-        if (!this.currentlyUsingBlocks) {
-          if (this.trackerPointIsInAce(position)) {
-            pos = this.aceEditor.renderer.screenToTextCoordinates(position.x, position.y);
-            this.aceEditor.focus();
-            this.aceEditor.session.selection.moveToPosition(pos);
-          } else {
-            this.aceEditor.blur();
-          }
-        }
         rect = this.wrapperElement.getBoundingClientRect();
         this.dragCanvas.style.top = (position.y - rect.top) + "px";
         this.dragCanvas.style.left = (position.x - rect.left) + "px";
@@ -9575,82 +9367,51 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return this.discourageDropTimeout = null;
     });
     hook('mouseup', 1, function(point, event, state) {
-      var currentIndentation, head, indentation, leadingWhitespaceRegex, line, nextLine, pos, position, prefix, suffix, text;
-      if (this.draggingBlock != null) {
-        if (!this.currentlyUsingBlocks) {
-          position = new this.draw.Point(point.x + this.draggingOffset.x, point.y + this.draggingOffset.y);
-          if (this.trackerPointIsInAce(position)) {
-            leadingWhitespaceRegex = /^(\s*)/;
-            pos = this.aceEditor.renderer.screenToTextCoordinates(position.x, position.y);
-            line = this.aceEditor.session.getLine(pos.row);
-            currentIndentation = leadingWhitespaceRegex.exec(line)[0];
-            prefix = '';
-            indentation = currentIndentation;
-            suffix = '';
-            if (currentIndentation.length === line.length) {
-              suffix = '\n' + indentation;
-            } else if (pos.column === line.length) {
-              prefix = '\n';
-              nextLine = this.aceEditor.session.getLine(pos.row + 1);
-              indentation = leadingWhitespaceRegex.exec(nextLine)[0];
-            } else {
-
-            }
-            this.prepareNode(this.draggingBlock, null);
-            text = this.draggingBlock.stringify(this.mode);
-            text = text.split('\n').map((function(_this) {
-              return function(line, index) {
-                return (index === 0 && prefix === '' ? '' : indentation) + line;
-              };
-            })(this)).join('\n');
-            text = prefix + text + suffix;
-            return this.aceEditor.onTextInput(text);
-          }
-        } else if (this.lastHighlight != null) {
-          if (this.inTree(this.draggingBlock)) {
-            this.addMicroUndoOperation('CAPTURE_POINT');
-            this.addMicroUndoOperation(new PickUpOperation(this.draggingBlock));
-            this.spliceOut(this.draggingBlock);
-          }
-          this.clearHighlightCanvas();
-          switch (this.lastHighlight.type) {
-            case 'indent':
-            case 'socket':
-              this.addMicroUndoOperation(new DropOperation(this.draggingBlock, this.lastHighlight.start));
-              this.spliceIn(this.draggingBlock, this.lastHighlight.start);
-              break;
-            case 'block':
-              this.addMicroUndoOperation(new DropOperation(this.draggingBlock, this.lastHighlight.end));
-              this.spliceIn(this.draggingBlock, this.lastHighlight.end);
-              break;
-            default:
-              if (this.lastHighlight === this.tree) {
-                this.addMicroUndoOperation(new DropOperation(this.draggingBlock, this.tree.start));
-                this.spliceIn(this.draggingBlock, this.tree.start);
-              }
-          }
-          this.moveCursorTo(this.draggingBlock.end, true);
-          if (this.lastHighlight.type === 'socket') {
-            this.reparseRawReplace(this.draggingBlock.parent.parent);
-          } else {
-            head = this.draggingBlock.start;
-            while (!(head.type === 'socketStart' && head.container.isDroppable() || head === this.draggingBlock.end)) {
-              head = head.next;
-            }
-            if (head.type === 'socketStart') {
-              this.setTextInputFocus(null);
-              this.setTextInputFocus(head.container);
-            }
-          }
-          this.fireEvent('block-click');
-          return this.endDrag();
+      var head;
+      if ((this.draggingBlock != null) && (this.lastHighlight != null)) {
+        if (this.inTree(this.draggingBlock)) {
+          this.addMicroUndoOperation('CAPTURE_POINT');
+          this.addMicroUndoOperation(new PickUpOperation(this.draggingBlock));
+          this.spliceOut(this.draggingBlock);
         }
+        this.clearHighlightCanvas();
+        switch (this.lastHighlight.type) {
+          case 'indent':
+          case 'socket':
+            this.addMicroUndoOperation(new DropOperation(this.draggingBlock, this.lastHighlight.start));
+            this.spliceIn(this.draggingBlock, this.lastHighlight.start);
+            break;
+          case 'block':
+            this.addMicroUndoOperation(new DropOperation(this.draggingBlock, this.lastHighlight.end));
+            this.spliceIn(this.draggingBlock, this.lastHighlight.end);
+            break;
+          default:
+            if (this.lastHighlight === this.tree) {
+              this.addMicroUndoOperation(new DropOperation(this.draggingBlock, this.tree.start));
+              this.spliceIn(this.draggingBlock, this.tree.start);
+            }
+        }
+        this.moveCursorTo(this.draggingBlock.end, true);
+        if (this.lastHighlight.type === 'socket') {
+          this.reparseRawReplace(this.draggingBlock.parent.parent);
+        } else {
+          head = this.draggingBlock.start;
+          while (!(head.type === 'socketStart' && head.container.isDroppable() || head === this.draggingBlock.end)) {
+            head = head.next;
+          }
+          if (head.type === 'socketStart') {
+            this.setTextInputFocus(null);
+            this.setTextInputFocus(head.container);
+          }
+        }
+        this.fireEvent('block-drop', ['addition']);
+        return this.endDrag();
       }
     });
     Editor.prototype.reparseRawReplace = function(oldBlock) {
       var e, newBlock, newParse, pos;
       try {
-        newParse = this.mode.parse(oldBlock.stringify(this.mode), {
+        newParse = this.mode.parse(oldBlock.stringify(this.mode.empty), {
           wrapAtRoot: true
         });
         newBlock = newParse.start.next.container;
@@ -9762,14 +9523,15 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           if (this.draggingBlock === this.lassoSegment) {
             this.lassoSegment = null;
           }
+          this.fireEvent('block-drop', ['deletion']);
           this.endDrag();
           return;
         } else if (renderPoint.x - this.scrollOffsets.main.x < 0) {
           renderPoint.x = this.scrollOffsets.main.x;
         }
+        this.fireEvent('block-drop', ['floatging']);
         this.addMicroUndoOperation(new ToFloatingOperation(this.draggingBlock, renderPoint, this));
         this.floatingBlocks.push(new FloatingBlockRecord(this.draggingBlock, renderPoint));
-        this.fireEvent('block-drop', ['floating']);
         this.draggingBlock = null;
         this.draggingOffset = null;
         this.lastHighlight = null;
@@ -9996,7 +9758,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         block = data.block;
         hoverDiv = document.createElement('div');
         hoverDiv.className = 'droplet-hover-div';
-        hoverDiv.title = (ref2 = data.title) != null ? ref2 : block.stringify(this.mode);
+        hoverDiv.title = (ref2 = data.title) != null ? ref2 : block.stringify(this.mode.empty);
         bounds = this.view.getViewNodeFor(block).totalBounds;
         hoverDiv.style.top = bounds.y + "px";
         hoverDiv.style.left = bounds.x + "px";
@@ -10064,17 +9826,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.hiddenInput.className = 'droplet-hidden-input';
       this.hiddenInput.addEventListener('focus', (function(_this) {
         return function() {
-          var bounds, inputLeft, inputTop;
+          var bounds;
           if (_this.textFocus != null) {
             bounds = _this.view.getViewNodeFor(_this.textFocus).bounds[0];
-            inputLeft = bounds.x + _this.mainCanvas.offsetLeft - _this.scrollOffsets.main.x;
-            inputLeft = Math.min(inputLeft, _this.dropletElement.clientWidth - 10);
-            inputLeft = Math.max(_this.mainCanvas.offsetLeft, inputLeft);
-            _this.hiddenInput.style.left = inputLeft + 'px';
-            inputTop = bounds.y - _this.scrollOffsets.main.y;
-            inputTop = Math.min(inputTop, _this.dropletElement.clientHeight - 10);
-            inputTop = Math.max(0, inputTop);
-            return _this.hiddenInput.style.top = inputTop + 'px';
+            _this.hiddenInput.style.left = (bounds.x + _this.mainCanvas.offsetLeft) + 'px';
+            return _this.hiddenInput.style.top = bounds.y + 'px';
           }
         };
       })(this));
@@ -10108,12 +9864,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       return results;
     });
     Editor.prototype.resizeAceElement = function() {
-      var width;
-      width = this.wrapperElement.offsetWidth;
-      if (this.showPaletteInTextMode && this.paletteEnabled) {
-        width -= this.paletteElement.offsetWidth;
-      }
-      this.aceElement.style.width = width + "px";
+      this.aceElement.style.width = this.wrapperElement.offsetWidth + "px";
       return this.aceElement.style.height = this.wrapperElement.offsetHeight + "px";
     };
     last_ = function(array) {
@@ -10121,11 +9872,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.redrawTextInput = function() {
       var endRow, head, line, newp, oldp, rect, sameLength, startRow, textFocusView, treeView;
-      sameLength = this.textFocus.stringify(this.mode).split('\n').length === this.hiddenInput.value.split('\n').length;
+      sameLength = this.textFocus.stringify(this.mode.empty).split('\n').length === this.hiddenInput.value.split('\n').length;
       this.populateSocket(this.textFocus, this.hiddenInput.value);
       textFocusView = this.view.getViewNodeFor(this.textFocus);
-      startRow = this.textFocus.stringify(this.mode).slice(0, this.hiddenInput.selectionStart).split('\n').length - 1;
-      endRow = this.textFocus.stringify(this.mode).slice(0, this.hiddenInput.selectionEnd).split('\n').length - 1;
+      startRow = this.textFocus.stringify(this.mode.empty).slice(0, this.hiddenInput.selectionStart).split('\n').length - 1;
+      endRow = this.textFocus.stringify(this.mode.empty).slice(0, this.hiddenInput.selectionEnd).split('\n').length - 1;
       if (sameLength && startRow === endRow) {
         line = endRow;
         head = this.textFocus.start;
@@ -10165,11 +9916,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         scrollIntoView = false;
       }
       textFocusView = this.view.getViewNodeFor(this.textFocus);
-      startRow = this.textFocus.stringify(this.mode).slice(0, this.hiddenInput.selectionStart).split('\n').length - 1;
-      endRow = this.textFocus.stringify(this.mode).slice(0, this.hiddenInput.selectionEnd).split('\n').length - 1;
-      lines = this.textFocus.stringify(this.mode).split('\n');
-      startPosition = textFocusView.bounds[startRow].x + this.view.opts.textPadding + this.mainCtx.measureText(last_(this.textFocus.stringify(this.mode).slice(0, this.hiddenInput.selectionStart).split('\n'))).width + (this.textFocus.hasDropdown() ? helper.DROPDOWN_ARROW_WIDTH : 0);
-      endPosition = textFocusView.bounds[endRow].x + this.view.opts.textPadding + this.mainCtx.measureText(last_(this.textFocus.stringify(this.mode).slice(0, this.hiddenInput.selectionEnd).split('\n'))).width + (this.textFocus.hasDropdown() ? helper.DROPDOWN_ARROW_WIDTH : 0);
+      startRow = this.textFocus.stringify(this.mode.empty).slice(0, this.hiddenInput.selectionStart).split('\n').length - 1;
+      endRow = this.textFocus.stringify(this.mode.empty).slice(0, this.hiddenInput.selectionEnd).split('\n').length - 1;
+      lines = this.textFocus.stringify(this.mode.empty).split('\n');
+      startPosition = textFocusView.bounds[startRow].x + this.view.opts.textPadding + this.mainCtx.measureText(last_(this.textFocus.stringify(this.mode.empty).slice(0, this.hiddenInput.selectionStart).split('\n'))).width + (this.textFocus.hasDropdown() ? helper.DROPDOWN_ARROW_WIDTH : 0);
+      endPosition = textFocusView.bounds[endRow].x + this.view.opts.textPadding + this.mainCtx.measureText(last_(this.textFocus.stringify(this.mode.empty).slice(0, this.hiddenInput.selectionEnd).split('\n'))).width + (this.textFocus.hasDropdown() ? helper.DROPDOWN_ARROW_WIDTH : 0);
       if (this.hiddenInput.selectionStart === this.hiddenInput.selectionEnd) {
         this.cursorCtx.lineWidth = 1;
         this.cursorCtx.strokeStyle = '#000';
@@ -10211,7 +9962,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.addMicroUndoOperation('CAPTURE_POINT');
         this.addMicroUndoOperation(new TextChangeOperation(this.textFocus, this.oldFocusValue, this));
         this.oldFocusValue = null;
-        originalText = this.textFocus.stringify(this.mode);
+        originalText = this.textFocus.stringify(this.mode.empty);
         shouldPop = false;
         shouldRecoverCursor = false;
         cursorPosition = cursorParent = null;
@@ -10221,7 +9972,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         }
         if (!this.textFocus.handwritten) {
           newParse = null;
-          string = this.textFocus.stringify(this.mode).trim();
+          string = this.textFocus.stringify(this.mode.empty).trim();
           try {
             newParse = this.mode.parse(unparsedValue = string, {
               wrapAtRoot: false
@@ -10262,12 +10013,12 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.dropletElement.focus();
         return;
       }
-      this.oldFocusValue = focus.stringify(this.mode);
+      this.oldFocusValue = focus.stringify(this.mode.empty);
       this.textFocus = focus;
-      this.populateSocket(focus, focus.stringify(this.mode));
+      this.populateSocket(focus, focus.stringify(this.mode.empty));
       this.textFocus.notifyChange();
       this.moveCursorTo(focus.end);
-      this.hiddenInput.value = this.textFocus.stringify(this.mode);
+      this.hiddenInput.value = this.textFocus.stringify(this.mode.empty);
       if ((selectionStart != null) && (selectionEnd == null)) {
         selectionEnd = selectionStart;
       }
@@ -10317,7 +10068,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       row = Math.max(row, 0);
       row = Math.min(row, textFocusView.lineLength - 1);
       column = Math.max(0, Math.round((point.x - textFocusView.bounds[row].x - this.view.opts.textPadding - (this.textFocus.hasDropdown() ? helper.DROPDOWN_ARROW_WIDTH : 0)) / this.mainCtx.measureText(' ').width));
-      lines = this.textFocus.stringify(this.mode).split('\n').slice(0, +row + 1 || 9e9);
+      lines = this.textFocus.stringify(this.mode.empty).split('\n').slice(0, +row + 1 || 9e9);
       lines[lines.length - 1] = lines[lines.length - 1].slice(0, column);
       return lines.join('\n').length;
     };
@@ -10328,8 +10079,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     Editor.prototype.selectDoubleClick = function(point) {
       var after, before, position, ref1, ref2, ref3, ref4;
       position = this.getTextPosition(point);
-      before = (ref1 = (ref2 = this.textFocus.stringify(this.mode).slice(0, position).match(/\w*$/)[0]) != null ? ref2.length : void 0) != null ? ref1 : 0;
-      after = (ref3 = (ref4 = this.textFocus.stringify(this.mode).slice(position).match(/^\w*/)[0]) != null ? ref4.length : void 0) != null ? ref3 : 0;
+      before = (ref1 = (ref2 = this.textFocus.stringify(this.mode.empty).slice(0, position).match(/\w*$/)[0]) != null ? ref2.length : void 0) != null ? ref1 : 0;
+      after = (ref3 = (ref4 = this.textFocus.stringify(this.mode.empty).slice(position).match(/^\w*/)[0]) != null ? ref4.length : void 0) != null ? ref3 : 0;
       this.textInputAnchor = position - before;
       this.textInputHead = position + after;
       return this.hiddenInput.setSelectionRange(this.textInputAnchor, this.textInputHead);
@@ -10405,9 +10156,8 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           fn1(el);
         }
         location = this.view.getViewNodeFor(this.textFocus).bounds[0];
-        this.dropdownElement.style.top = location.y + this.fontSize - this.scrollOffsets.main.y + 'px';
-        this.dropdownElement.style.left = location.x - this.scrollOffsets.main.x + this.dropletElement.offsetLeft + this.mainCanvas.offsetLeft + 'px';
-        return this.dropdownElement.style.minWidth = location.width + 'px';
+        this.dropdownElement.style.top = location.y + this.fontSize - this.scrollOffsets.main.y;
+        return this.dropdownElement.style.left = location.x - this.scrollOffsets.main.x + this.dropletElement.offsetLeft + this.mainCanvas.offsetLeft;
       }
     };
     Editor.prototype.hideDropdown = function() {
@@ -11287,7 +11037,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
 
     })();
     Editor.prototype.performMeltAnimation = function(fadeTime, translateTime, cb) {
-      var aceScrollTop, bottom, div, fn1, fn2, i, j, k, len, line, lineHeight, paletteDisappearingWithMelt, ref1, ref2, ref3, textElement, textElements, top, translatingElements, translationVectors, treeView;
+      var aceScrollTop, bottom, div, fn1, fn2, i, j, k, len, line, lineHeight, ref1, ref2, ref3, textElement, textElements, top, translatingElements, translationVectors, treeView;
       if (fadeTime == null) {
         fadeTime = 500;
       }
@@ -11316,6 +11066,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.dropletElement.style.width = this.wrapperElement.offsetWidth + 'px';
         this.currentlyUsingBlocks = false;
         this.currentlyAnimating = this.currentlyAnimating_suppressRedraw = true;
+        this.paletteHeader.style.zIndex = 0;
         ref1 = this.computePlaintextTranslationVectors(), textElements = ref1.textElements, translationVectors = ref1.translationVectors;
         translatingElements = [];
         fn1 = (function(_this) {
@@ -11375,33 +11126,23 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.lineNumberWrapper.style.display = 'none';
         this.mainCanvas.style.transition = this.highlightCanvas.style.transition = this.cursorCanvas.style.opacity = "opacity " + fadeTime + "ms linear";
         this.mainCanvas.style.opacity = this.highlightCanvas.style.opacity = this.cursorCanvas.style.opacity = 0;
-        paletteDisappearingWithMelt = this.paletteEnabled && !this.showPaletteInTextMode;
-        if (paletteDisappearingWithMelt) {
-          this.paletteHeader.style.zIndex = 0;
-          setTimeout(((function(_this) {
-            return function() {
-              _this.dropletElement.style.transition = _this.paletteWrapper.style.transition = "left " + translateTime + "ms";
-              _this.dropletElement.style.left = '0px';
-              return _this.paletteWrapper.style.left = (-_this.paletteWrapper.offsetWidth) + "px";
-            };
-          })(this)), fadeTime);
-        }
+        setTimeout(((function(_this) {
+          return function() {
+            _this.dropletElement.style.transition = _this.paletteWrapper.style.transition = "left " + translateTime + "ms";
+            _this.dropletElement.style.left = '0px';
+            return _this.paletteWrapper.style.left = (-_this.paletteWrapper.offsetWidth) + "px";
+          };
+        })(this)), fadeTime);
         setTimeout(((function(_this) {
           return function() {
             var l, len1;
             _this.dropletElement.style.transition = _this.paletteWrapper.style.transition = '';
-            _this.aceElement.style.top = '0px';
-            if (_this.showPaletteInTextMode && _this.paletteEnabled) {
-              _this.aceElement.style.left = _this.paletteWrapper.offsetWidth + "px";
-            } else {
-              _this.aceElement.style.left = '0px';
-            }
-            if (paletteDisappearingWithMelt) {
-              _this.paletteWrapper.style.top = '-9999px';
-              _this.paletteWrapper.style.left = '-9999px';
-            }
             _this.dropletElement.style.top = '-9999px';
             _this.dropletElement.style.left = '-9999px';
+            _this.paletteWrapper.style.top = '-9999px';
+            _this.paletteWrapper.style.left = '-9999px';
+            _this.aceElement.style.top = "0px";
+            _this.aceElement.style.left = "0px";
             _this.currentlyAnimating = false;
             _this.mainScroller.style.overflow = 'auto';
             for (l = 0, len1 = translatingElements.length; l < len1; l++) {
@@ -11451,7 +11192,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         this.fireEvent('statechange', [true]);
         setTimeout(((function(_this) {
           return function() {
-            var aceScrollTop, bottom, div, el, fn1, fn2, i, j, k, l, len, len1, line, lineHeight, paletteAppearingWithFreeze, ref1, ref2, ref3, ref4, textElement, textElements, top, translatingElements, translationVectors, treeView;
+            var aceScrollTop, bottom, div, el, fn1, fn2, i, j, k, l, len, len1, line, lineHeight, ref1, ref2, ref3, ref4, textElement, textElements, top, translatingElements, translationVectors, treeView;
             _this.mainScroller.style.overflow = 'hidden';
             _this.dropletElement.style.width = _this.wrapperElement.offsetWidth + 'px';
             _this.redrawMain({
@@ -11460,18 +11201,11 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
             _this.currentlyAnimating_suppressRedraw = true;
             _this.aceElement.style.top = "-9999px";
             _this.aceElement.style.left = "-9999px";
-            paletteAppearingWithFreeze = _this.paletteEnabled && !_this.showPaletteInTextMode;
-            if (paletteAppearingWithFreeze) {
-              _this.paletteWrapper.style.top = '0px';
-              _this.paletteWrapper.style.left = (-_this.paletteWrapper.offsetWidth) + "px";
-              _this.paletteHeader.style.zIndex = 0;
-            }
+            _this.paletteWrapper.style.top = '0px';
+            _this.paletteWrapper.style.left = (-_this.paletteWrapper.offsetWidth) + "px";
             _this.dropletElement.style.top = "0px";
-            if (_this.paletteEnabled && !paletteAppearingWithFreeze) {
-              _this.dropletElement.style.left = _this.paletteWrapper.offsetWidth + "px";
-            } else {
-              _this.dropletElement.style.left = "0px";
-            }
+            _this.dropletElement.style.left = "0px";
+            _this.paletteHeader.style.zIndex = 0;
             ref1 = _this.computePlaintextTranslationVectors(), textElements = ref1.textElements, translationVectors = ref1.translationVectors;
             translatingElements = [];
             fn1 = function(div, textElement) {
@@ -11545,12 +11279,9 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
                 return _this.cursorCanvas.style.opacity = CURSOR_UNFOCUSED_OPACITY;
               }
             }), translateTime);
-            _this.dropletElement.style.transition = "left " + fadeTime + "ms";
-            if (paletteAppearingWithFreeze) {
-              _this.paletteWrapper.style.transition = _this.dropletElement.style.transition;
-              _this.dropletElement.style.left = _this.paletteWrapper.offsetWidth + "px";
-              _this.paletteWrapper.style.left = '0px';
-            }
+            _this.dropletElement.style.transition = _this.paletteWrapper.style.transition = "left " + fadeTime + "ms";
+            _this.dropletElement.style.left = _this.paletteWrapper.offsetWidth + "px";
+            _this.paletteWrapper.style.left = '0px';
             return setTimeout((function() {
               var len2, m;
               _this.dropletElement.style.transition = _this.paletteWrapper.style.transition = '';
@@ -11574,49 +11305,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         return {
           success: true
         };
-      }
-    };
-    Editor.prototype.enablePalette = function(enabled) {
-      var activeElement;
-      if (!this.currentlyAnimating && this.paletteEnabled !== enabled) {
-        this.paletteEnabled = enabled;
-        this.currentlyAnimating = true;
-        if (this.currentlyUsingBlocks) {
-          activeElement = this.dropletElement;
-        } else {
-          activeElement = this.aceElement;
-        }
-        if (!this.paletteEnabled) {
-          activeElement.style.transition = this.paletteWrapper.style.transition = "left 500ms";
-          activeElement.style.left = '0px';
-          this.paletteWrapper.style.left = (-this.paletteWrapper.offsetWidth) + "px";
-          this.paletteHeader.style.zIndex = 0;
-          this.resize();
-          return setTimeout(((function(_this) {
-            return function() {
-              activeElement.style.transition = _this.paletteWrapper.style.transition = '';
-              _this.paletteWrapper.style.top = '-9999px';
-              _this.paletteWrapper.style.left = '-9999px';
-              return _this.currentlyAnimating = false;
-            };
-          })(this)), 500);
-        } else {
-          this.paletteWrapper.style.top = '0px';
-          this.paletteWrapper.style.left = (-this.paletteWrapper.offsetWidth) + "px";
-          this.paletteHeader.style.zIndex = 257;
-          return setTimeout(((function(_this) {
-            return function() {
-              activeElement.style.transition = _this.paletteWrapper.style.transition = "left 500ms";
-              activeElement.style.left = _this.paletteWrapper.offsetWidth + "px";
-              _this.paletteWrapper.style.left = '0px';
-              return setTimeout((function() {
-                activeElement.style.transition = _this.paletteWrapper.style.transition = '';
-                _this.resize();
-                return _this.currentlyAnimating = false;
-              }), 500);
-            };
-          })(this)), 0);
-        }
       }
     };
     Editor.prototype.toggleBlocks = function(cb) {
@@ -11862,7 +11550,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
         newParse = this.mode.parse(value, {
           wrapAtRoot: true
         });
-        if (value !== this.tree.stringify(this.mode)) {
+        if (value !== this.tree.stringify(this.mode.empty)) {
           this.addMicroUndoOperation('CAPTURE_POINT');
         }
         this.addMicroUndoOperation(new SetValueOperation(this.tree, newParse));
@@ -11889,7 +11577,6 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
       this.resizeTextMode();
       this.aceEditor.session.setScrollTop(oldScrollTop);
       if (this.currentlyUsingBlocks) {
-        this.setTextInputFocus(null);
         result = this.setValue_raw(value);
         if (result.success === false) {
           this.setEditorState(false);
@@ -11909,7 +11596,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
     };
     Editor.prototype.getValue = function() {
       if (this.currentlyUsingBlocks) {
-        return this.addEmptyLine(this.tree.stringify(this.mode));
+        return this.addEmptyLine(this.tree.stringify(this.mode.empty));
       } else {
         return this.getAceValue();
       }
@@ -12364,7 +12051,7 @@ if(i=this.variable instanceof Z){if(this.variable.isArray()||this.variable.isObj
           this.copyPasteInput.focus();
           window.scrollTo(x, y);
           if (this.lassoSegment != null) {
-            this.copyPasteInput.value = this.lassoSegment.stringify(this.mode);
+            this.copyPasteInput.value = this.lassoSegment.stringify(this.mode.empty);
           }
           return this.copyPasteInput.setSelectionRange(0, this.copyPasteInput.value.length);
         }

@@ -1,0 +1,50 @@
+TODO:
+
+Logging:
+
+	Blocks:
+	 	- on block drop
+	 	- on run
+		- palette change
+		- text changes in blocks mode
+			(using cursor in blocks)
+		- highlight/deleting of blocks
+		- text changes (?)
+			- like change text inputs into blocks
+
+	Text:
+	 	- on keypress (after some delay)
+		- on run
+
+	Hybrid:
+	 	- on block drop
+		- on keypress (after some delay)
+	 	- on run
+ 		- palette change
+ 		- palette close
+
+Log event options:
+	pickblock
+	change
+	statechange & toggledone (I think this is for start/end of blocks <-> text transition)
+	linehover
+	change-palette
+
+Logging Tables:
+ 	ProgramEvents:
+ 		studentID
+ 		project (from_dropdown)
+ 		timestamp
+ 		mode (blocks, text, hybrid)
+ 		log_event (textInput, mouseInput, run, close)
+ 		program_body
+ 		greyed_out_blocks
+ 		projectHTML
+ 		projectCSS
+
+ 	PaletteChanges:
+ 		studentID
+ 		project (from_dropdown)
+ 		timestamp
+ 		mode (blocks, text, hybrid)
+ 		palette_selected

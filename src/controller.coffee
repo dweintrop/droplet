@@ -1532,7 +1532,7 @@ hook 'mouseup', 1, (point, event, state) ->
         )
 
       # Fire the event for sound
-      @fireEvent 'block-click'
+      @fireEvent 'block-drop', ['addition']
 
 Editor::spliceRememberedSocketOffsets = (block) ->
   if block.getDocument()?
@@ -1599,6 +1599,8 @@ hook 'mouseup', 0, (point, event, state) ->
 
     else if renderPoint.x - @scrollOffsets.main.x < 0
       renderPoint.x = @scrollOffsets.main.x
+
+    @fireEvent 'block-drop', ['floating']
 
     # Add the undo operation associated
     # with creating this floating block
@@ -1818,6 +1820,9 @@ hook 'redraw_palette', 0, ->
 hook 'rebuild_palette', 1, ->
   # Remove the existent blocks
   @paletteScrollerStuffing.innerHTML = ''
+
+  # DW - not sure this is right
+  @fireEvent 'block-drop', ['deletion']
 
   @currentHighlightedPaletteBlock = null
 
