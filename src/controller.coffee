@@ -1360,8 +1360,6 @@ define ['droplet-helper',
       else if renderPoint.x - @scrollOffsets.main.x < 0
         renderPoint.x = @scrollOffsets.main.x
 
-      @fireEvent 'block-drop', ['floating']
-
       # Add the undo operation associated
       # with creating this floating block
       @addMicroUndoOperation new ToFloatingOperation @draggingBlock, renderPoint, this
@@ -1371,6 +1369,9 @@ define ['droplet-helper',
         @draggingBlock,
         renderPoint
       )
+
+      # Log floating block drop
+      @fireEvent 'block-drop', ['floating']
 
       # Now that we've done that, we can annul stuff.
       @draggingBlock = null
