@@ -1623,6 +1623,9 @@ hook 'mouseup', 0, (point, event, state) ->
         el.text
       )
 
+    # DW - I think this goes here, verify
+    @fireEvent 'block-drop', ['floating']
+
     # Now that we've done that, we can annul stuff.
     @draggingBlock = null
     @draggingOffset = null
