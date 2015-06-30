@@ -1,27 +1,22 @@
 <html>
   <head>
     <link rel="stylesheet" href="lib/qunit.css"/>
+    <link rel="stylesheet" href="../dist/droplet.min.css"/>
     <style>
-      #hidden {
-        position: absolute;
-        top: -9999px;
-        left: -9999px;
-        height: 300px;
-        width: 500px;
+      #test-main {
+        width: 1000px; height: 1000px;
+        opacity: 0.3;
       }
     </style>
   </head>
   <div id="qunit"></div>
   <div id="qunit-fixture"></div>
-  <div id="hidden">
-    <canvas id="main"></canvas>
-    <div id="test-main">
-    </div>
-    <div id="test-palette">
-    </div>
+  <div id="test-main">
   </div>
   <script src="../vendor/ace/ace.js"></script>
   <script src="lib/jquery.min.js"></script>
+  <script src="lib/bililiteRange.js"></script>
+  <script src="lib/jquery.sendkeys.js"></script>
   <script src="../vendor/qunit.js"></script>
-  <script src="js/jstest.js"></script>
+  <script src="js/uitest.js"></script>
 </html>
