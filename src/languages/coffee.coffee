@@ -1,6 +1,6 @@
 # Droplet CoffeeScript mode
 #
-# Copyright (c) Anthony Bau
+# Copyright (c) Anthony Bau (dab1998@gmail.com)
 # MIT License
 
 helper = require '../helper.coffee'
@@ -970,6 +970,8 @@ exports.CoffeeScriptParser = class CoffeeScriptParser extends parser.Parser
 # =============
 
 fixCoffeeScriptError = (lines, e) ->
+  if lines.length is 1 and /^['"]|['"]$/.test lines[0]
+    return fixQuotedString lines
   if /unexpected\s*(?:newline|if|for|while|switch|unless|end of input)/.test(
       e.message) and /^\s*(?:if|for|while|unless)\s+\S+/.test(
       lines[e.location.first_line])
@@ -987,6 +989,40 @@ fixCoffeeScriptError = (lines, e) ->
       return backTickLine lines, unmatchedline
 
   return null
+
+# To fix quoting errors, we first do a lenient C-unescape, then
+# we do a string C-escaping, to add backlsashes where needed, but
+# not where we already have good ones.
+fixQuotedString = (lines) ->
+  line = lines[0]
+  quotechar = if /^"|"$/.test(line) then '"' else "'"
+  if line.getCharAt(0) is quotechar
+    line = line.substr(1)
+  if line.getCharAt(line.length - 1) is quotechar
+    line = line.substr(0, line.length -1)
+  return quoteAndCEscape fixQuotedLine line
+
+looseCUnescape = (str) ->
+  codes =
+    '\\b': '\b'
+    '\\t': '\t'
+    '\\n': '\n'
+    '\\f': '\f'
+    '\\"': '"'
+    "\\'": "'"
+    "\\\\": "\\"
+    "\\0": "\0"
+  str.replace /\\[btnf'"\\0]|\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}/g, (m) ->
+    if m.length is 2 then return codes[m]
+    return String.fromCharCode(parseInt(m.substr(1), 16))
+
+quoteAndCEscape = (str, quotechar) ->
+  result = JSON.stringify(str)
+  if quotechar is "'"
+    return quotechar +
+      result.substr(1, result.length -2).replace(/\\"/g, '"').
+      replace(/'/g, "\\'") + quotechar
+  return result
 
 findUnmatchedLine = (lines, above) ->
   # Not done yet
@@ -1041,11 +1077,11 @@ CoffeeScriptParser.drop = (block, context, pred) ->
     else if 'mostly-block' in block.classes
       return helper.DISCOURAGE
 
-  else if context.type in ['indent', 'segment']
+  else if context.type in ['indent', 'document']
     if 'block-only' in block.classes or
         'mostly-block' in block.classes or
         'any-drop' in block.classes or
-        block.type is 'segment'
+        block.type is 'document'
       return helper.ENCOURAGE
 
     else if 'mostly-value' in block.classes
@@ -1058,14 +1094,15 @@ CoffeeScriptParser.parens = (leading, trailing, node, context) ->
   return if '__comment__' in node.classes
 
   trailing trailing().replace /\s*,\s*$/, ''
+  # Remove existing parentheses
+  while true
+    if leading().match(/^\s*\(/)? and trailing().match(/\)\s*/)?
+      leading leading().replace(/^\s*\(\s*/, '')
+      trailing trailing().replace(/\s*\)\s*$/, '')
+    else
+      break
   if context is null or context.type isnt 'socket' or
       context.precedence < node.precedence
-    while true
-      if leading().match(/^\s*\(/)? and trailing().match(/\)\s*/)?
-        leading leading().replace(/^\s*\(\s*/, '')
-        trailing trailing().replace(/\s*\)\s*$/, '')
-      else
-        break
   else
     leading '(' + leading()
     trailing trailing() + ')'
