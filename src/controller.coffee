@@ -1594,13 +1594,13 @@ hook 'mouseup', 0, (point, event, state) ->
       if @draggingBlock is @lassoSelection
         @lassoSelection = null
 
+      @fireEvent 'block-drop', ['deletion']
+
       @endDrag()
       return
 
     else if renderPoint.x - @scrollOffsets.main.x < 0
       renderPoint.x = @scrollOffsets.main.x
-
-    @fireEvent 'block-drop', ['floating']
 
     # Add the undo operation associated
     # with creating this floating block
@@ -1625,7 +1625,6 @@ hook 'mouseup', 0, (point, event, state) ->
         el.text
       )
 
-    # DW - I think this goes here, verify
     @fireEvent 'block-drop', ['floating']
 
     # Now that we've done that, we can annul stuff.
@@ -1820,9 +1819,6 @@ hook 'redraw_palette', 0, ->
 hook 'rebuild_palette', 1, ->
   # Remove the existent blocks
   @paletteScrollerStuffing.innerHTML = ''
-
-  # DW - not sure this is right
-  @fireEvent 'block-drop', ['deletion']
 
   @currentHighlightedPaletteBlock = null
 
