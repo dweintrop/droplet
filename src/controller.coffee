@@ -1463,6 +1463,8 @@ hook 'mouseup', 1, (point, event, state) ->
 
         text = prefix + text + suffix
 
+        @fireEvent 'block-drop', ['addition']
+
         @aceEditor.onTextInput text
     else if @lastHighlight?
       @undoCapture()
@@ -1531,7 +1533,6 @@ hook 'mouseup', 1, (point, event, state) ->
           el.text
         )
 
-      # Fire the event for sound
       @fireEvent 'block-drop', ['addition']
 
 Editor::spliceRememberedSocketOffsets = (block) ->
@@ -1594,7 +1595,9 @@ hook 'mouseup', 0, (point, event, state) ->
       if @draggingBlock is @lassoSelection
         @lassoSelection = null
 
-      @fireEvent 'block-drop', ['deletion']
+      # don't log deletion in hybrid mode (as this is how addition happens in text editor)
+      if @currentlyUsingBlocks
+        @fireEvent 'block-drop', ['deletion']
 
       @endDrag()
       return
