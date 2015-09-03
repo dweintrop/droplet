@@ -1463,9 +1463,10 @@ hook 'mouseup', 1, (point, event, state) ->
 
         text = prefix + text + suffix
 
+        @aceEditor.onTextInput text
+
         @fireEvent 'block-drop', ['addition']
 
-        @aceEditor.onTextInput text
     else if @lastHighlight?
       @undoCapture()
 
